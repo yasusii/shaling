@@ -1,0 +1,1181 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=euc-jp">
+<title>車輪、あるいは電子メールクライアント</title>
+<style type="text/css">
+BODY { line-height: 130%; }
+BLOCKQUOTE { background: #eeeeee; }
+CODE { background: #eeeeee; }
+KBD { background: #eeeeee; font-weight: bold; }
+</style>
+</head>
+<body>
+<h2>
+<a href="http://www.unixuser.org/~euske/python/shaling/index.html">車輪、あるいは電子メールクライアント</a>
+</h2>
+
+<p>
+<strong>ダウンロード:
+<a href="http://www.unixuser.org/~euske/python/shaling/shaling-dist-20070313.tar.gz"><code>shaling-dist-20070313.tar.gz</code></a>
+</strong>
+(70KBytes, 要 Python2.4以上)
+<a href="changes.html">更新履歴</a>
+
+<p>
+<strong>デモ:
+<a href="http://www.unixuser.org/~euske/python/shaling/shaling1.html">その1 (メールを検索する)</a>、
+<a href="http://www.unixuser.org/~euske/python/shaling/shaling2.html">その2 (メールを書く)</a>
+</strong>
+
+<p>
+Shaling (車輪) は UNIX と Python ユーザのための電子メールクライアントです。
+
+<h4>特徴:</h4>
+<ul>
+<li> UNIX シェルと親和性のよいコマンド入力型インターフェイス。
+<li> <a href="http://www.nongnu.org/nmh/">MH</a> に類似したコマンド体系。
+<li> 統合された検索機能。
+<li> 数十万通のメールを格納可能なデータベース (メール消去の必要なし)。
+<li> 規則によるメールの自動振り分け。
+<li> 複数のラベル (タグ) による管理。
+<li> ラベルによる各メールの色分け表示。
+<li> スレッド検索、名前からのメールアドレス検索をサポート。
+<li> 堅牢かつ互換性のあるファイル形式 (すべてのメールを tar 形式で保存)。
+<li> 伝統的な UNIX ファイルシステム上でも効率的に動作可能。
+<li> コンパクトなデータ構造 (メールを圧縮して保存)。
+<li> Python を知っていれば、設定やカスタマイズが簡単 (コードはすべて Python で書かれており、外部モジュールは不要)。
+</ul>
+
+<p>
+<font color=red><strong>警告:</strong></font>
+このプログラムは現時点ではまだ開発段階のものであり、エラー処理やテストが完璧ではありません。
+そのため、何かあったときに自力で解決できる人以外は使用をお控えください。
+また、機能や仕様は将来変更されることがあります。
+
+<p>
+<strong>ご意見・ご質問はこちらへ:</strong>
+<a href="http://groups.google.com/group/shaling-users/">http://groups.google.com/group/shaling-users/</a>
+
+<hr noshade>
+
+<h4>移行の手順</h4>
+<ol>
+<li> <a href="#installation">インストールする。</a>
+<li> <a href="#config">設定ファイル <code>.shalingrc</code> を書く。</a>
+<li> <a href="#create">データベースを作成する。</a>
+<li> <a href="#rules">振り分け規則ファイルを書く。(オプション)</a>
+<li> <a href="#import">既存のメールを取り込む。</a>
+<li> <a href="#use">使う。</a>
+ <ol type=a>
+ <li> <a href="#search">メールを検索する</a>
+ <li> <a href="#compose">メールを書く</a>
+ <li> <a href="#incorporate">新着メールを取り込む</a>
+ <li> <a href="#label">メールにラベルをつける</a>
+ <li> <a href="#attachments">添付ファイルの操作</a>
+ <li> <a href="#cleanup">検索データベースの整理</a>
+ </ol>
+</ol>
+<ul>
+<li> <a href="#reference">基本コマンド・リファレンス</a>
+<ul>
+<li> <a href="#aliases">エイリアスによって実現されているコマンド</a>
+</ul>
+</ul>
+<ul>
+<li> <a href="#techinfo">技術的な情報</a>
+<li> <a href="#todos">バグ・TODO</a>
+</ul>
+<ul>
+<li> <a href="#license">ライセンス</a>
+</ul>
+
+<hr noshade>
+<a name="installation"></a>
+<h3>1. インストール</h3>
+<p>
+ここでは、ユーザが個人のディレクトリにインストールする場合を想定しています。
+(Shaling は単なる Python スクリプトなので、実行ファイルのパスさえ通っていれば
+どこにインストールしてもかまいません)
+<p>
+まずダウンロードした tar ファイルを適当な場所に展開します。
+<blockquote><pre>
+$ <strong>tar zxf shaling-dist-20070228.tar.gz</strong>
+$ <strong>cd shaling-dist-20070228</strong>
+$ <strong>ls -l</strong>
+-rw-r--r--    1 yusuke        463 Jan  2 11:27 Makefile
+-rw-r--r--    1 yusuke        248 Jan  6 15:51 README
+drwxr-xr-x    2 yusuke       4096 Jan 14 01:31 bin        (実行可能ファイル)
+drwxr-xr-x    2 yusuke       4096 Jan 14 01:21 docs       (文書ファイル)
+drwxr-xr-x    2 yusuke       4096 Jan 14 01:33 etc        (設定ファイルのサンプルなど)
+drwxr-xr-x    3 yusuke       4096 Jan 14 01:35 shaling    (Shaling本体)
+</pre></blockquote>
+<p>
+次に、このディレクトリ内にある <code>bin</code> ディレクトリにパスを通します。
+<blockquote><pre>
+$ <strong>PATH=$PWD/bin:$PATH</strong>
+</pre></blockquote>
+<P>
+その後、<q><code>shaling</code></q> とタイプすると、
+「設定ファイルがない」という以下のようなエラーが表示されます。
+<blockquote><pre>
+$ <strong>shaling</strong>
+[Errno 2] No such file or directory: '/home/yusuke/.shalingrc'
+shalinrc not found!
+</pre></blockquote>
+<p>
+もし、ここで
+<blockquote><pre>
+Unknown option: -E
+</pre></blockquote>
+または 
+<blockquote><pre>
+SyntaxError: invalid syntax
+</pre></blockquote>
+といわれる場合は、古いバージョンの Python が実行されている可能性があります。
+Python 2.4 以上をインストールし、それが <q><code>python</code></q> というコマンドで
+実行されるようにしてください。
+<p>
+<q><code>python</code></q> コマンドがデフォルトで
+Python 2.4 以外のものを実行する場合は、環境変数 <code>PYTHON</code> に
+Shaling を実行するための Python コマンドラインを設定してください。
+<blockquote><pre>
+設定例:
+$ <strong>export PYTHON="python2.4 -E -O"</strong>
+</pre></blockquote>
+(ここで指定している <code>-E -O</code> オプションは実行速度を上げるためのものです)
+
+<hr noshade>
+<a name="config"></a>
+<h3>2. 設定ファイル <code>.shalingrc</code> を書く</h3>
+<p>
+次に、ホームディレクトリ上に設定ファイル <code>.shalingrc</code> を作成します。
+先ほどの <code>shaling-dist/etc/</code> ディレクトリ内に
+サンプルの設定ファイルが含まれていますので、
+これをホームディレクトリにコピーして編集します。
+<blockquote><pre>
+$ <strong>cp etc/shalingrc.sample ~/.shalingrc</strong>
+$ <strong>vi ~/.shalingrc</strong>
+</pre></blockquote>
+<p>
+<code>.shalingrc</code> ファイルの中身は Python スクリプトであり、
+これは Shaling を起動する際に毎回実行されます。
+したがって、このファイルの内容は Python の文法に従っている必要があります。
+最低でも以下の 5つの変数を書き換えてください:
+
+<p>
+設定例:
+<blockquote><pre>
+TOP_DIR = '<u>/home/username/Mail/</u>'             <em>(データベース用のディレクトリ)</em>
+SPOOL = '<u>/home/username/.Maildir/new/</u>'       <em>(スプール名)</em>
+MY_FROM = '<u>Your Name &lt;yourname@your.domain&gt;</u>' <em>(From ヘッダ)</em>
+EDITOR = '<u>emacs %s</u>'                          <em>(使用するエディタ)</em>
+SMTP_HOST = ('<u>smtp-server.your.domain</u>', 25, '<u>username</u>', '<u>password</u>', <u>False</u>)  <em>(SMTPホスト名とポート番号、ユーザ名、パスワード、TLSの有無)</em>
+</pre></blockquote>
+
+<dl>
+<dt> <code>TOP_DIR</code> (データベース用のディレクトリ)
+<dd> Sharing で扱うメールを保存するデータベース用のディレクトリを文字列で指定します。
+通常これは各ユーザのホームディレクトリ上におき、<code>Mail</code> などの名前にします。
+<p>
+
+<dt> <code>SPOOL</code> (スプール名)
+<dd> メールスプールを指定します。
+現在のところサポートされているスプール形式は mbox、 Maildir、 POP3 です
+(IMAP4 はサポートしていません)。
+<ul>
+<li> mbox 形式のスプールを指定する場合は、そのファイル名 (<code>'/var/spool/mail/yusuke'</code> など)
+<li> Maildir 形式のスプールを指定する場合は、そのディレクトリ名 (<code>'/home/yusuke/.Maildir/new/'</code> など、
+<strong>末尾に <code>/</code> を含むこと</strong>)
+<li> pop3 形式のスプールを指定する場合は、<code>'pop3:<em>ホスト名</em>,<em>ユーザ名</em>,<em>パスワード</em>'</code> の形式
+(この形式は、将来変更される可能性があります)
+</ul>
+を指定します。
+<p>
+<strong>注意:</strong>
+Maildir を指定する場合は、 (cur, new, tmp を含む) 大元のディレクトリでは<strong>なく</strong>、
+新しいメールが配信される <code>new</code> ディレクトリを指定してください。
+<p>
+
+<dt> <code>MY_FROM</code> (From ヘッダ)
+<dd> 送信するメールの <code>From:</code> フィールドを指定します。
+これは <code>'Yusuke Shinyama &lt;yusuke@my.domain&gt;'</code> のような文字列にします。
+<p>
+
+<dt> <code>EDITOR</code> (使用するエディタ)
+<dd> 文書作成に使うエディタの呼び出しコマンドライン文字列を指定します。
+この文字列は Python によって <code>%s</code> の部分が編集するファイル名に置き換わりますので、
+<strong>必ず <code>%s</code> をひとつだけ含む</strong>ようにしてください。代表的な例は 
+<code>'vi %s'</code> や <code>'emacs %s'</code> でしょう。
+<p>
+
+<dt> <code>SMTP_HOST</code> (SMTPホスト情報)
+<dd> メールを送信する際の SMTPサーバの情報を
+<code>(<em>'ホスト名'</em>, <em>ポート番号</em>, <em>ユーザ名</em>, <em>パスワード</em>, <em>TLSの有無</em>)</code> の 5要素のタプルで指定します。
+SMTP AUTH でパスワードが必要な場合はユーザ名とパスワードを文字列で、TLS の有無 を <code>True</code>/<code>False</code> のどちらかで指定します。認証が必要ない場合はこれらの値は空文字列にしておきます。
+POP before SMTP は今のところサポートしていません。
+</dl>
+
+
+<h4>その他のオプション</h4>
+<dl>
+<dt> <code>RULES</code> (メールの振り分け規則)
+<dd> メールの自動振り分け規則を書いたファイルのパス名を指定します。
+複数の振り分け規則ファイルを指定することができるように、この変数はファイル名のリストになっています。
+振り分け規則ファイルの書き方については<a href="#rules">振り分け規則ファイルを書く</a>を参照してください。
+<blockquote><pre>
+RULES = [
+  '/home/yusuke/rules.txt'
+]
+</pre></blockquote>
+<p>
+<dt> <code>TERMINAL_CHARSET</code> (端末の文字セット)
+<dd> 文字の表示に使う文字セットを指定します。デフォルトは <code>euc-jp</code> です。
+<p>
+<dt> <code>MESSAGE_CHARSET</code> (メールのデフォルト文字セット)
+<dd> メールのテキスト部分に使う、デフォルトの文字セットを指定します。
+日本語の場合は <code>iso-2022-jp</code> が慣例になっています。
+<p>
+<dt> <code>LABELS</code> (メールにつけるラベルとその名前の対応一覧)
+<dd> Shaling では、各メールにラベルをつけることができます。
+各ラベルはアルファベット 1文字で指定され、最高 52種類までのラベルが使えますが
+(<code>'A'</code>〜<code>'Z'</code>、<code>'a'</code>〜<code>'z'</code>)、
+各ラベルに (アルファベット 2文字以上の) 名前をつけることもできます。
+この辞書は「ラベルの文字→ラベルの名前」の対応関係を指定するものです。
+たとえば、以下の例では、ラベル <code>'i'</code> が定義され、
+このラベルは <code>'i'</code> という文字を覚えるかわりに 'important' という名前でも
+指定できるようになります。
+<blockquote><pre>
+LABELS = {
+  'i': 'important'
+}
+</pre></blockquote>
+<p>
+<dt> <code>MESSAGE_COLOR</code> (ラベルとその表示色の対応一覧)
+<dd> 特定のラベルのついたメールは、特定の色で表示することができます。
+ここではラベルとその色の対応関係を指定します。
+ラベルはアルファベット 1文字あるいは (<code>LABELS</code> で定義した) ラベル名で指定します。
+たとえば以下の例では、ラベル <code>'important'</code> のついているメールは黄色で、
+ラベル <code>'ml'</code> のついているメールは緑色で表示されます。
+前のほうで指定されている色ほど優先順位が高く、
+複数のラベルがついたメールは、最初にマッチしたラベルの色で表示されます。
+<blockquote><pre>
+MESSAGE_COLOR = [
+  ('important', 'yellow'),
+  ('ml', 'green),
+]
+</pre></blockquote>
+なお、ここで使える色は ANSI 端末に準拠しており、
+<code>black</code>, <code>red</code>, <code>green</code>, <code>yellow</code>,
+<code>blue</code>, <code>magenta</code>, <code>cyan</code>, <code>white</code>
+です。背景色を指定する場合は <code>bg_red</code> のように色の先頭に <code>bg_</code> をつけてください。
+複数の色は <code>+</code> 記号で組み合わせることができます。たとえば <code>'white+bg_red'</code> という指定は
+背景色が赤で白い文字を表示します。色以外にも、
+<code>bold</code> や <code>italic</code>、<code>underline</code> という指定も
+(端末がサポートしていれば) 使うことができます。
+<p>
+<dt> <code>COMMAND_ALIASES</code> (コマンドのエイリアス)
+<dd> Shaling 内で使うコマンドのエイリアスを定義します。
+エイリアスは基本的に特定のコマンド名を置換するだけであり、
+<code>tcsh</code> のエイリアスのように変数や関数を使うことは今のところできません。
+これらのエイリアスは、Shaling をアプリケーションとして独立に使うのであれば
+Shaling 内部で解釈され、Shaling コマンドをシェルからじかに実行する場合は
+シェルのエイリアスに組み込まれます。
+<blockquote><pre>
+COMMAND_ALIASES = {
+  'all': 'scan all',
+  'next': 'scan -N',
+  'prev': 'scan -P',
+}
+</pre></blockquote>
+<p>
+<dt> <code>ADDRESS_ALIASES</code> (アドレスのエイリアス)
+<dd> メールアドレスのエイリアスを定義します。このアドレスはメールを書く際に自動的に展開されます。
+<blockquote><pre>
+ADDRESS_ALIASES = {
+  'yusuke': 'Yusuke Shinyama &lt;yusuke@my.domain&gt;',
+}
+</pre></blockquote>
+<p>
+なお、Shaling には既存のメールからアドレスを検索する機能があるため (<a href="#compose">メールを書く</a> を参照)、
+それほど沢山のエイリアスを指定する必要はありません。
+<p>
+<dt> <code>MIME_HELPER</code> (外部アプリケーションの指定)
+<dd> 画像や PDF などの添付ファイルを表示するためのアプリケーションを指定します。
+<p>
+<dt> <code>DEFAULT_PAGER</code> (ページャの指定)
+<dd> 画面サイズ以上のメールを表示するときに使う外部ページャの名前を指定します。
+このアプリケーションは標準入力からテキストを読み込む必要があります。
+デフォルトでは <code>less</code> あるいは環境変数 <code>PAGER</code> の値になっています。
+<p>
+<dt> <code>PRINTABLE_HEADERS</code> (デフォルトで表示するヘッダの一覧)
+<dd> デフォルトで表示するヘッダの一覧。
+<code>show</code> コマンドでは、メールのヘッダはここに指定した順序で表示されます。
+<p>
+<dt> <code>EDITABLE_HEADERS</code> (編集可能なヘッダの一覧)
+<dd> <code>comp</code> あるいは <code>edit</code> コマンドで編集できるヘッダの一覧。
+<p>
+<dt> <code>HEADER_COLOR</code> (ヘッダの表示色)
+<dd> メール中のヘッダ部分の表示色をヘッダごとに指定できます。
+<p>
+
+</dl>
+
+
+<a name="shellconf"></a>
+<h4>シェルの設定</h4>
+<p>
+シェルの設定で行うことは、基本的に以下の 2つだけです:
+<ul>
+<li> <code>shaling-dist/bin/</code> にパスを通す。
+<li> <code>eval &quot;`shaling_aliases`&quot;</code> を実行する。
+</ul>
+
+<P>
+<code>shaling_aliases</code> は、Shaling で使うコマンドを、
+シェルから直接呼び出せるようにするためのエイリアスを定義します。
+<kbd>shaling_aliases</kbd> を実行すると、以下のような
+出力が得られます:
+<blockquote><pre>
+$ <strong>shaling_aliases</strong>
+alias apply="shaling apply";
+alias cleanup="shaling cleanup";
+alias comp="shaling comp";
+alias edit="shaling edit";
+alias get="shaling get";
+alias inc="shaling inc";
+alias label="shaling label";
+alias mime="shaling mime";
+alias resolve="shaling resolve";
+alias scal="shaling scan";
+alias send="shaling send";
+alias show="shaling show";
+alias next="shaling next";
+alias all="shaling all";
+alias n="shaling n";
+alias p="shaling p";
+alias repl="shaling repl";
+alias prev="shaling prev";
+alias forw="shaling forw";
+alias rmm="shaling rmm";
+</pre></blockquote>
+<p>
+あとはこれを <code>eval</code> に通せばエイリアスが定義されます。
+
+<p>
+<code>etc/rc.bash</code>、<code>etc/rc.tcsh</code> も参考にしてください。
+
+
+<p>
+<hr noshade>
+<a name="create"></a>
+<h3>3. データベースを作成する</h3>
+<p>
+先ほど <code>TOP_DIR</code> に設定したディレクトリ名 (たとえば <code>~/Mail/</code>) に対して、
+以下のように実行します。
+<blockquote><pre>
+$ <strong>shaling_maildb create ~/Mail/</strong>
+</pre></blockquote>
+<p>
+すると、<code>~/Mail/</code> 以下にはつぎのようなディレクトリができているはずです。
+<blockquote><pre>
+$ <kbd>ls -l ~/Mail/</kbd>
+total 16
+drwx------    4 yusuke       4096 Jan  6 22:44 inbox
+drwx------    2 yusuke       4096 Jan  6 22:44 sel
+drwx------    2 yusuke       4096 Jan  6 22:44 tmp
+</pre></blockquote>
+<p>
+ここまで来たら、Shaling を使う準備ができたことになります。
+
+<hr noshade>
+<a name="rules"></a>
+<h3>4. 振り分け規則ファイルを書く (オプション)</h3>
+<p>
+Shaling では、新着メール (あるいは既存のメール) をタイトルや差出人、件名などによって
+自動的に分類 (ラベルづけ) することができます。
+この分類のための規則は、<code>.shalinrc</code> の <code>RULES</code> 変数で指定される、
+規則ファイルと呼ばれるテキストファイル内に以下のような構文で記述します:
+<blockquote><pre>
+[<em>ラベル名</em>]
+<em>述語1</em>: <em>値1</em>
+<em>述語2</em>: <em>値2</em>
+...
+</pre></blockquote>
+<p>
+各ラベル名のあとに、1つ以上の述語・値の指定が続きます。
+各述語は論理積 (and) で組み合わされます。
+たとえば、以下の例では、<code>From</code> 行が "<code>someone@important.domain</code>" で、
+かつ、<code>Subject</code> に "very important" という文字列を含んでいるメールに、
+"<code>important</code>" というラベルがつけられます。(<code>#</code> 以降はコメントです)
+<blockquote><pre>
+# 重要なメールに "important" のラベルをつける。
+[important]
+From: someone@important.domain
+Subject: very important
+</pre></blockquote>
+<p>
+指定できる述語は以下のとおりです。
+なお、述語の前に <code>-</code> または <code>!</code> 文字をつけると否定の意味になります。
+述語によっては値に <code>*</code> を使ってワイルドカードを指定できますが、
+この値の意味は述語によって違ってきます:
+<dl>
+<dt> <code>From</code>, <code>To</code>
+<dd> メールの <code>From</code> あるいは <code>To</code> ヘッダの内容を指定します。
+(なお、<code>To</code> を指定した場合、実際にはそのメールの <code>Cc</code> の値も検査されます。)
+"<code>@</code>" マークが含まれている場合、この値は <code>From</code> の中のアドレスと比較され、
+"<code>@</code>" マークが含まれていない場合、この値は <code>From</code> の中の名前フィールドと比較されます。
+アドレスの指定方法は以下のとおりです:
+<ul>
+<li> <code><em>address</em>@<em>domain</em></code> (ドメインを含む特定のアドレスにマッチ)
+<li> <code><em>address</em>@</code> (ユーザ名部分にマッチ)
+<li> <code>@<em>domain</em></code> (特定のドメインのすべてのアドレスにマッチ)
+<li> <code>@*<em>domain</em></code> (特定のドメインで終わるすべてのアドレスにマッチ)
+</ul>
+<p>
+<dt> <code>Subject</code>
+<dd> メールの <code>Subject</code> ヘッダの内容を指定します。
+この値は Python 正規表現のパターンとして扱われ、ヘッダの内容にマッチするかどうかが検査されます。
+<p>
+<dt> <code>Date</code>
+<dd> メールの相対的な日付を指定します。現在のところ指定できる値は
+<code>today</code> (24時間以内に届いたメール) あるいは 
+<code>future</code> (未来の日付になっているメール) の 2つのみです。
+<p>
+<dt> <code>Label</code>
+<dd> そのメールにすでにつけられているラベルを指定します。
+複数のラベルをつけたい場合は、すでにつけられているラベルをもとに
+メールを判断することができます。
+ワイルドカード "<code>*</code>" を指定すると、
+なんらかのラベルがつけられているメールすべてにマッチします。
+<p>
+</dl>
+<p>
+振り分け規則はファイルの先頭から順に検査され、マッチしたものからラベルがつけられていきます。
+ひとつのメールは複数の規則にマッチすることもあり、その場合は複数のラベルがつけられます。
+ただし、以下の例における <code>[important!]</code> のように、
+ラベル名の後に <code>!</code> がついている場合、
+この規則にマッチしたメールはその時点でラベルが決定され、
+以降の規則はすべて無視されます。
+<p>
+<strong>振り分け規則の例:</strong><br>
+<blockquote><pre>
+# junky@evil から来るメールにはすべて "junk" のラベルをつけ、これ以降の規則は無視する。
+[junk!]
+From: junky@evil
+
+# ドメイン important.domain から来るメールには、すべて "important" のラベルをつける。
+[important]
+From: @important.domain
+
+# ラベル "important" がついていないメールで Subject に "get $$$" を含むメールには "junk" のラベルをつける。
+[junk]
+-Label: important
+Subject: get \$\$\$
+</pre></blockquote>
+
+<hr noshade>
+<a name="import"></a>
+<h3>5. 既存のメールを取り込む</h3>
+<p>
+Shaling が実行できる状態で、
+以下のように実行すると "<code>Not found.</code>" と表示されるはずです。
+<blockquote><pre>
+$ <kbd>shaling scan all</kbd>
+Selection: all
+Not found.
+</pre></blockquote>
+<P>
+これは、メールがまだデータベース中に一通もないことを示しています。
+既存のメーラからメールを取り込むには次のようにします。
+<blockquote><pre>
+$ inc <em>スプール名</em>
+</pre></blockquote>
+<P>
+ここで<code><em>スプール名</em></code>は mbox 形式または Maildir形式の
+スプールのパス名を指定します
+(MH などで使われていた、1ファイルに 1メッセージが入っているものは、基本的に Maildir形式と同じです)。
+mbox 形式のスプールを指定する場合は、そのファイル名 (<code>'/var/spool/mail/yusuke'</code> など) を指定し、
+Maildir 形式のスプールを指定する場合は、そのディレクトリ名 (<code>'/home/yusuke/.Maildir/new/'</code> など
+<strong>末尾に <code>/</code> を含むもの</strong>) を指定します。
+pop3 形式のスプールを指定する場合は、<code>'pop3:<em>ホスト名</em>,<em>ユーザ名</em>,<em>パスワード</em>'</code> 
+のような形式で指定します。なお、このさい <code>,</code> の前後にはスペースを入れてはいけません
+(この形式は、将来変更される可能性があります)。
+<p>
+取り込むメールにあらかじめ特定のラベルをつけておきたい場合は、
+以下のように指定します:
+<blockquote><pre>
+$ inc +<em>ラベル</em> <em>スプール名</em>
+</pre></blockquote>
+<p>
+Mutt などから移行する場合で、
+元のメールが入っていたディレクトリごとに別のラベルをつけたいときは
+以下のようなシェルスクリプトを書けばよいでしょう:
+<blockquote><pre>
+cd ~/Mail/
+for i in inbox outbox draft nyu ref; do
+  inc +$i ./$i/
+done
+</pre></blockquote>
+
+
+<hr noshade>
+<a name="use"></a>
+<h3>6. 使う</h3>
+
+<p>
+Shaling では、メールの読み書きはすべてコマンドを使っておこないます。
+<P>
+Shaling には 2つの起動方法があります。
+ひとつは Shaling をアプリケーションとして起動しコマンド入力をおこなう方法で、
+もうひとつは UNIX シェルから個々の Shaling コマンドを直接実行する方法です。
+
+<a name="independent"></a>
+<h4>Shaling を独立して起動する場合</h4>
+<p>
+Shaling アプリケーションとして起動する場合は、
+コマンドラインで <kbd>shaling</kbd> とタイプします。
+「<code>Shaling&gt;</code>」というプロンプトが表示されるので、
+あとは通常の Shaling コマンド (以下参照) を入力します。
+<blockquote><pre>
+$ <strong>shaling</strong>
+Welcome to Shaling version-20070228.
+Shaling> <strong>scan</strong> <em>(コマンドを入力)</em>
+...
+</pre></blockquote>
+
+<ul>
+<li> 長所: 一度起動してしまえば各コマンドの反応は速い。
+<li> 短所: UNIX シェルの標準的な機能 (パイプなど) が使えない。
+</ul>
+
+<a name="integrated"></a>
+<h4>UNIX シェルとの統合的な環境で使用する場合</h4>
+<p>
+UNIX シェルからじかに個々の Shaling コマンドを実行する場合は、
+まず <kbd>shaling_alias</kbd> を実行してその出力を <code>eval</code> します。
+これは、<kbd>scan</kbd> → <kbd>shaling scan</kbd> のようなエイリアスを定義するようになっており、
+このエイリアスは各コマンドごとに Python インタプリタを起動します。
+
+<ul>
+<li> 長所: UNIX シェルと統合されている。
+<li> 短所: コマンドをひとつ実行するごとに Python を起動するので遅い。
+</ul>
+
+<a name="search"></a>
+<h4>a. メールを検索する</h4>
+<p>
+Shaling では「フォルダ」という概念が存在しません。
+受けとったメール、および送信したメール、書きかけのメールは
+すべて同一のデータベースに保存され、必要に応じてここからメールを検索し「選択」した状態にします。
+この選択されたメールの集合に対して、表示・編集・ラベル付けをおこなうわけです。
+これは SQL の SELECT 文でテーブルを作成し、それに対して操作を行うのに似ています。
+<p>
+たとえば、データベース全体から「ニューヨーク」という文字列が含まれているメールを選択するには
+<kbd>scan</kbd> というコマンドを使います:
+<blockquote><pre>
+&gt; <strong>scan ニューヨーク</strong>
+Selection: "ニューヨーク"
+<u>  1:+ 06/12/21  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【お知らせ】邦.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..</u>
+  2:  06/12/19  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【緊急メール】.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..
+  3:  06/12/14  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【緊急メール】.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..
+...
+1-20 of 324 results.
+</pre></blockquote>
+<p>
+選択されたメールは、デフォルトで最大 20件までが表示されます。
+(次の 20件を表示するには <kbd>next</kbd> (あるいは <kbd>scan -N</kbd>) を実行します。)
+日付の新しいものほど上になります。以後、別の <code>scan</code> コマンドを実行するまで、
+この検索結果のメールすべてが「選択」された状態になっています。
+選択されている各メールは左側のインデックス番号 (1, 2, 3, ... ) で指定することができます。
+たとえば、ここで選択されている最初 (1番目) のメールを詳細表示するには <kbd>show</kbd> コマンドを使います:
+<blockquote><pre>
+&gt; <strong>show 1</strong>
+*** 1: (83110) [to]
+Date: Fri, 22 Dec 2006 05:36:54 +0900
+From: eny@mailmz.emb-japan.go.jp
+Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【お知らせ】邦人安否確認システムのテスト運用
+
+　　　　　　　　　　＜＜＜総領事館からのお知らせ＞＞＞
+
+在留邦人の皆様へ
+
+　年末・年始に「全米・カナダ邦人安否確認システム」をテスト運用！
+...
+</pre></blockquote>
+<p>
+次のメールを表示するには <kbd>show 1</kbd> と入力するか、
+あるいは <kbd>n</kbd> と入力します 
+(<code>n</code> は <code>show -N</code> へのエイリアスです):
+<blockquote><pre>
+&gt; <strong>n</strong>
+*** 2: (82845) [to]
+Date: Wed, 20 Dec 2006 05:06:23 +0900
+From: eny@mailmz.emb-japan.go.jp
+Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【緊急メール】病原性大腸菌Ｏ１５７感染の流行、終了
+
+在留邦人の皆様へ
+                        　　　　　
+　　　　当地における病原性大腸菌Ｏ１５７感染流行の終了について
+
+　１４日付、ＣＤＣ（米国疾病管理予防センター）ホームページに原性大腸菌Ｏ
+１５７感染の流行について続報がありましたので、概要をお知らせいたします。
+...
+</pre></blockquote>
+<p>
+<kbd>n</kbd> を入力するたびにメールは次のものへと移っていきます。
+この後、検索条件を指定せず単にもう一度 <kbd>scan</kbd> と入力すると、現在の選択範囲を表示します:
+<blockquote><pre>
+&gt; <strong>scan</strong>
+Selection: "ニューヨーク"
+  1:+ 06/12/21  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【お知らせ】邦.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..
+<u>  2:  06/12/19  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【緊急メール】.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..</u>
+  3:  06/12/14  eny@mailmz.emb-jap.. [to] [在<font color=red><strong>ニューヨーク</strong></font>総領事館]【緊急メール】.. &gt;&gt; ... Subject: [在<font color=red><strong>ニューヨーク</strong></font>総領事..
+...
+1-20 of 324 results.
+</pre></blockquote>
+<P>
+Shaling では、「いま着目しているメール」という概念があります。
+いま着目しているメールには下線が引かれています。
+このメールは、インデックス番号のかわりに <code>.</code> (ピリオド) でも表すことができます。
+<p>
+現在データベースに格納されているメールをすべて選択する場合は
+<kbd>scan all</kbd> を実行します。この場合、データベースにあるすべてのメールが日付順に表示されます:
+<blockquote><pre>
+&gt; <strong>scan all</strong>
+</pre></blockquote>
+
+<p>
+Shaling では、検索条件としてメール本文中 (と添付ファイル) に含まれている文字列のほか、
+差出人アドレスやメールの subject:、日付、ラベルなどが指定できます。
+たとえば、<code>@nyu.edu</code> というアドレスから来たメールを検索するには、
+次のようにします:
+<blockquote><pre>
+&gt; <strong>scan from:@nyu.edu</strong>
+Selection: "from:@nyu.edu"
+<u>  1:+15:29 Wed  NYU Graduate Stude.. [nyu] [src-gradlife] NYU Student Resource Ce.. &gt;&gt; ... From: NYU Graduate Student Li..</u>
+  2: 14:10 Tue  Carol Hutchins       [nyu] [Dept] news on forthcoming PR campaign.. &gt;&gt; ... From: Carol Hutchins &lt;carol.h..
+  3: 11:28 Mon  Department of Comp.. [nyu] Grader &amp; Tutor Positions Available in .. &gt;&gt; ...  of Computer Science &lt;Michael..
+...
+</pre></blockquote>
+<p>
+検索条件は複数個指定することもできます。
+この場合、複数の条件は「かつ (and)」によって組み合わされます。
+たとえば "<code>linux</code>" "<code>scsi</code>" "<code>raid</code>" の語がすべて含まれていて、
+さらに "<code>nylug</code>" のラベルがつけられているメールを検索するには次のようにします。
+ラベルのついたメールは、"<code>+<em>ラベル名</em></code>" のような条件式で検索できます:
+<blockquote><pre>
+&gt; <strong>scan linux scsi raid +nylug</strong>
+Selection: "linux" "scsi" "raid"
+<u>  1:+ 06/09/07  plener2@verizon.ne.. [ml, nylug] [nylug-talk] dell server to give away &gt;&gt; ... next letter--drive bays ar..</u>
+  2:  06/08/25  jh                   [ml, nylug] [nylug-talk] OT: SATA&lt;-&gt;<font color=red><strong>SCSI RAID</strong></font> encl.. &gt;&gt; ... Subject: [nylug-talk] O..
+  3:  06/02/07  Steven Lembark       [ml, nylug] Re: [nylug-talk] Throw hardware at it... &gt;&gt; ... with &gt; 8-10 500GB S/ATA..
+...
+</pre></blockquote>
+<p>
+新しく検索を行うと、それまでの選択は解除され、新しい選択範囲が作りなおされます。
+なお、この場合でも Shaling はデフォルトで過去 10個までの選択範囲を保存しており、
+以前の選択結果を呼び出すことができます。詳しくは <code>sel</code> コマンドを参照してください。
+
+<p>
+また、<kbd>thread</kbd> コマンドを使うと、
+指定したメールが含まれているスレッドのメールをすべて選択することができます。
+これはメールにつけられている <code>Message-ID</code> や <code>References</code> ヘッダをもとに
+スレッドを検索します。
+<blockquote><pre>
+&gt; <strong>thread</strong>
+Selection: &quot;references: &lt;20070308174130.GA23722@calimero.vinschen.de&gt; &lt;200703072310.l27NAMxP006468@cvs.openbsd.org&gt; &lt;200703072310.l27NAMxP006468@cvs.openbsd.org&gt;&quot;
+<u>  1:+10:00  ..  Corinna Vinschen     [ssh, ml] Re: Announce: OpenSSH 4.6 released &gt;&gt; From: Corinna Vinschen &lt;vinschen@re..</u>
+  2: 17:11 Wed  Darren Tucker        [ssh, ml] Re: Announce: OpenSSH 4.6 released &gt;&gt; From: Darren Tucker &lt;dtucker@zip.co..
+  3: 16:57 Wed  Darren Tucker        [ssh, ml] Re: Announce: OpenSSH 4.6 released &gt;&gt; From: Darren Tucker &lt;dtucker@zip.co..
+  4: 15:25 Wed  Darren Tucker        [ssh, ml] Re: Announce: OpenSSH 4.6 released &gt;&gt; From: Darren Tucker &lt;dtucker@zip.co..
+  5: 12:41 Wed  Corinna Vinschen     [ssh, ml] Re: Announce: OpenSSH 4.6 released &gt;&gt; From: Corinna Vinschen &lt;vinschen@re..
+  6: 18:10 Tue  Damien Miller        [ssh, ml] Announce: OpenSSH 4.6 released &gt;&gt; From: Damien Miller &lt;djm@cvs.openbsd.or..
+1-6 of 6 messages.
+</pre></blockquote>
+ 
+<a name="compose"></a>
+<h4>b. メールを書く</h4>
+<p>
+メールを書く場合には <code>comp</code> コマンドを使います。
+引数として相手のアドレスを渡すと、あらかじめ環境変数 (あるいは <code>.shalingrc</code>) で
+設定したエディタが起動し、メールを作成できます。
+
+<blockquote><pre>
+&gt; <strong>comp shinyama@example.com</strong>
+<em>(エディタが起動する)</em>
+From: Yusuke Shinyama &lt;yusuke@my.domain&gt;
+To: shinyama@example.com
+Cc:
+Bcc:
+Label: draft
+Subject: 
+
+</pre></blockquote>
+<p>
+宛て先アドレスとして <code>@</code> を含まない文字列を指定した場合、
+過去のメールからその文字列を含むアドレスが検索され、もっとも妥当と思われるアドレスが自動的に入力されます:
+<blockquote><pre>
+&gt; <strong>comp 新山</strong>
+<em>(エディタが起動する)</em>
+From: Yusuke Shinyama &lt;yusuke@my.domain&gt;
+To: 新山 祐介 &lt;shinyama@example.com&gt;
+Cc:
+Bcc:
+Label: draft
+Subject: 
+</pre></blockquote>
+<p>
+メールの編集が終わると、そのメールはデータベースに格納されます。
+Shaling では、書きかけのメールも送信済みのメールもすべて (受けとったメールと) 同一の
+データベースに格納されます。ただしこの場合は "draft" というラベルがつけられ、
+他のメールとは区別されます。
+<p>
+<code>comp</code> コマンドが終了すると、いま編集したメールだけがデータベース上で選択された状態になります:
+<blockquote><pre>
+&gt; <strong>comp shinyama@example.com</strong>
+<em>(…メールを書く…)</em>
+
+Selection: all
+<u>  1:+20:17 Thr  Yusuke Shinyama      [draft] Issues on Japanese text &gt;&gt; Hello, I'd like to ...</u>
+1-1 of 1 results.
+</pre></blockquote>
+<p>
+ここで、<kbd>send</kbd> コマンドを使うと、"draft" ラベルのついているメールを
+送信することができます。
+<blockquote><pre>
+&gt; <strong>send</strong>
+From: 'yusuke@my.domain'
+Rcpt: ['shinyama@example.com']
+</pre></blockquote>
+<p>
+ここで使われている <code>.</code> (ピリオド) は、
+たったいま編集したメールを指定するのに使われています。
+
+
+<a name="incorporate"></a>
+<h4>c. 新着メールを取り込む</h4>
+<p>
+新着メールをデータベース中に取り込むには、<kbd>inc</kbd> コマンドを使用します。
+<blockquote><pre>
+&gt; <strong>inc</strong>
+Selection: all
+<u>  1:+21:40  ..  Darren Tucker        [ssh, ml] Re: &quot;Out of memory&quot; error lo.. &gt;&gt; Simon Vallet wrote:...</u>
+  2: 05:21  ..  Simon Vallet         [ssh, ml] &quot;Out of memory&quot; error lookin.. &gt;&gt; Hi, we're currently...
+...
+</pre></blockquote>
+<p>
+<kbd>inc</kbd> コマンドを実行するとそれまでの選択範囲が解除され、
+新しく取り込まれたメールだけが選択された状態になります。
+
+
+<a name="label"></a>
+<h4>d. メールにラベルをつける</h4>
+<p>
+Shaling ではメールにラベルをつけることができます。
+Shaling では、受けとったメールや書きかけのメール、送信済みのメールなどはすべてラベルによって区別されます。
+削除されたメールも「削除」のラベルがつくだけで、実際に削除されることはありません。
+ラベルはひとつのメールに複数個つけることができ、
+現在ついているラベルによってメールを色分け表示することもできます。
+<p>
+ラベルをつけるには、<kbd>label</kbd> コマンドを使います:
+<blockquote><pre>
+&gt; <strong>label +important 1</strong>
+Selection: all
+  1:+21:40  ..  Darren Tucker        [ssh, ml] Re: &quot;Out of memory&quot; error lo.. &gt;&gt; Simon Vallet wrote:...
+<u>  1: 05:21  ..  Simon Vallet         [ssh, ml, important] &quot;Out of memory&quot; error lookin.. &gt;&gt; Hi, we're currently...</u>
+...
+</pre></blockquote>
+<p>
+ラベルの名前は <kbd>+<em>ラベル名</em></kbd> のように指定します
+(すでについているラベルを削除するには <kbd>-<em>ラベル名</em></kbd> のように指定します)。
+すべてのラベル名は基本的にアルファベット 1文字で表され、
+上の例での "<code>important</code>" のような名前を使うためには、
+あらかじめ <code>.shalingrc</code> の変数 <code>LABELS</code> に
+ラベル名と文字との対応を登録しておく必要があります。
+(ラベル <code>i</code> に 名前 <code>important</code> が指定されている場合、
+<kbd>+important</kbd> のかわりにただ <kbd>+i</kbd> と指定してもかまいません。)
+<blockquote><pre>
+# .shalingrc
+LABELS = {
+ 'i': 'important,
+ ...
+}
+</pre></blockquote>
+<p>
+ラベルのついたメールを検索するには、検索条件に
+<kbd>+<em>ラベル名</em></kbd> を指定します。
+たとえば以下の操作ではラベル "important" のついたメールすべてが選択されます:
+<blockquote><pre>
+&gt; <strong>scan +important</strong>
+Selection: all
+<u>  1: 05:21  ..  Simon Vallet         [ssh, ml, important] &quot;Out of memory&quot; error lookin.. &gt;&gt; Hi, we're currently...</u>
+  2: 15:18 Thu  Santiago Pizzini     [nyu, important] [Phd-students] Phd Research Orientatio.. &gt;&gt; From: Santiag...
+...
+</pre></blockquote>
+
+
+<a name="attachments"></a>
+<h4>e. 添付ファイルの操作</h4>
+<p>
+メールに添付ファイルがついている場合、以下のようなフッタが表示されます:
+<blockquote><pre>
+&gt; <strong>show 12</strong>
+Date: Wed, 10 Jan 2007 14:10:50 -0600 (CST)
+From: &quot;U.S._Postal_Service_&quot;&lt;U.S._Postal_Service@usps.com&gt;
+Subject: USPS Proof of Delivery Info 
+
+--- :1 [text/plain]
+
+  This is a post-only message. Please do not respond.
+  Service Type: Express Mail
+  Thank you for requesting a Proof of Delivery letter on your shipment.
+
+<em>...</em>
+<div style="background: #ccffcc;">== multipart/mixed
+  :1 [text/plain]
+  :2 [application/pdf] &quot;EI651713775JP.pdf&quot;</div></pre>
+</blockquote>
+<p>
+上のメールは 2つの部分からなっています。本文 (<code>:1</code>) と、
+添付された PDF ファイル (<code>:2</code>) です。
+これらの部分を表示するには <code><em>インデックス番号:MIMEパート番号</em></code>
+のような形式で指定します (例. <code>12:2</code>)。
+現在着目しているメールであれば、<code><em>インデックス番号</em></code>は省略できます。
+<blockquote><pre>
+&gt; <strong>show :1</strong>
+<em>(本文のみを表示する)</em>
+&gt; <strong>show :2</strong>
+<em>(添付PDFを表示する - xpdf が起動)</em>
+</pre></blockquote>
+<p>
+添付ファイルを保存するには <code>get</code> コマンドを使います。
+ファイル名を尋ねてくるので、保存したいファイル名を入力します。
+ここでただ Enter を押すとメール中で指定されているデフォルトの名前になります。
+<blockquote><pre>
+&gt; <strong>get :2</strong>
+Filename [EI651713775JP.pdf]  <em>(Enter を押す)</em>
+<em>(該当部分が EI651713775JP.pdf という名前で保存される)</em>
+</pre></blockquote>
+<p>
+ファイルを添付したメールを送る場合は、まず <code>comp</code> コマンドでメールを作成してから、
+<code>mime</code> コマンドを使ってファイルを添付します。
+<blockquote><pre>
+&gt; <strong>comp shinyama@example.com</strong>
+<em>(…メールを書く…)</em>
+&gt; <strong>mime . mydocument.pdf</strong>
+<em>(いま書いたメールに PDF ファイル mydocument.pdf を追加する)</em>
+&gt; <strong>send .</strong>
+<em>(送信する)</em>
+</pre></blockquote>
+
+
+<a name="cleanup"></a>
+<h4>f. 検索データベースの整理</h4>
+<p>
+Shaling では、内部で使用している検索用のデータベースを
+定期的に整理 (最適化) する必要があります。
+これは何もせずデータベースに新しいメールを追加していくと、しだいに検索速度が低下するためです。
+データベースを整理するには、単に <kbd>cleanup</kbd> というコマンドを実行します:
+<blockquote><pre>
+&gt; <strong>cleanup</strong>
+Merging...
+</pre></blockquote>
+<p>
+データベースの整理は最低でも数日に 1回程度は実行してください。
+整理には通常数秒〜数十秒かかるため、
+これは普段ユーザが使用していない時間に <code>cron</code> などで実行してもかまいません。
+なお、データベースの整理中もユーザはメールを検索したり読んだりすることはできますが、
+新しいメールの追加や編集はできません。
+
+
+<a name="reference"></a>
+<hr noshade>
+<h3>基本コマンド・リファレンス</h3>
+
+<dl>
+
+<dt> <code>apply [-r <em>規則ファイル</em>] [-n] [-v] [-R] <em>インデックス番号</em> ...</code>
+<dd> 与えられた規則ファイルに従って、メールに自動的にラベルをふります。
+規則ファイルが与えられない場合、<code>.shalingrc</code> で指定されている規則ファイルを使用します。
+規則ファイルの文法については<a href="#rules">振り分け規則ファイルを書く</a>を参照してください。
+<ul>
+<li> <code>-r <em>規則ファイル</em></code> (rule) : メールをラベルづけするときの規則ファイルを指定します。
+デフォルトでは、<code>.shalingrc</code> で指定されている規則ファイルが使われます。
+<li> <code>-n</code> (null) : リハーサルモード。各メールにつけられるラベルを表示しますが、
+実際のデータベースは変更しません。これは規則ファイルのデバッグに使えます。
+<li> <code>-v</code> (verbose) : 冗長なモード。規則を適用したあとの各メールをラベルを表示します。
+</ul>
+<p>
+
+<dt> <code>cleanup</code>
+<dd> メール検索用データベースを整理します。整理には通常数秒〜数十秒かかります。
+なお、整理中もメールを検索したり読んだりすることはできますが、新しいメールの追加や編集はできません。
+<p>
+
+<dt> <code>comp [-g] [-r] [-F] [-s <em>件名</em>] [+<em>ラベル</em>] [<em>インデックス番号</em>] [<em>宛て先1</em> <em>宛て先2</em> ...</code>]
+<dd> 新たなメールを作成し、データベースに格納します (cf. <a href="#compose">メールを書く</a>)。
+既存のメールのインデックス番号を指定すると、そのメールに返信するメールを作成します。
+元のメールを引用する場合は、<code>-r</code> オプションを指定してください。
+保存したメールには "draft" のラベルがつけられます
+(これは後にこのメールを送信すると "deleted" のラベルに変更されます)。
+<ul>
+<li> <code>-g</code> (group reply) : 返信のさい、元のメールの To: および Cc: ヘッダに含まれていた宛て先をすべて残します。
+<li> <code>-r</code> (reply) : 返信のさい、元のメールの文章を '<code>&gt;</code>' を使って引用します。
+なお、標準で定義されているエイリアスである '<code>repl</code>' コマンドでは、これがデフォルトになります。
+<li> <code>-F</code> (forward) : 指定したメールを添付ファイルとして別の宛て先に送信します。
+標準で定義されているエイリアスである '<code>forw</code>' コマンドでは、このフラグを使っています。
+<li> <code>-s <em>件名</em></code> (subject) : メールの件名 (Subject: フィールド) を指定します。
+<li> <code>+<em>ラベル</em></code> : 作成するメールにつけるラベルを指定します。
+デフォルトでは、"draft" が使われます。
+</ul>
+<p>
+
+<dt> <code>edit [-f] <em>インデックス番号</em></code>
+<dd> 既存のメールを修正します。
+通常編集できるメールは "draft" のラベルがついているものだけです。
+なお、「編集」といっても、データベース中の古いメールが上書きされるわけではありません。
+古いメールは "deleted" のラベルをつけてそのまま残され、編集後のメールが新しく追加されます。
+<ul>
+<li> <code>-f</code> (forcibly) : "draft" のラベルがついていないメールを強制的に編集します。
+</ul>
+<p>
+
+<dt> <code>get [-f <em>フィールド名</em>] [-F <em>フィールド名</em>] [-o <em>ファイル名</em>] <em>インデックス番号</em>[:<em>パート番号</em>]</code>
+<dd> メールから添付ファイルやヘッダを抜き出します。
+添付ファイルにファイル名がつけられている場合は、ユーザの確認の後、
+その名前でカレントディレクトリにファイルを保存します。
+そうでない場合は <code>-o</code> オプションによりファイル名を指定する必要があります。
+ヘッダの
+<ul>
+<li> <code>-f <em>フィールド名</em></code> (field) : 
+ヘッダから特定のフィールドを抜き出し、"フィールド名: 値" の形式で標準出力に表示します。
+<li> <code>-F <em>フィールド名</em></code> (field) : 
+ヘッダから特定のフィールドを抜き出し、その値だけを標準出力に表示します。
+</ul>
+<p>
+
+<dt> <code>inc [-q] [-E] [-P] [-r <em>規則ファイル</em>] [+<em>ラベル</em>] [<em>スプール名1</em> <em>スプール名2</em> ...]</code>
+<dd> 新しく届いたメールをデータベース中に取り込み、それらが選択された状態にします
+(cf. <a href="#incorporate">新着メールを取り込む</a>)。
+各メールは与えられた (あるいはデフォルトの) 規則ファイルにしたがってラベルづけされます。
+<code><em>スプール名</em></code>が省略された場合は <code>.shalingrc</code> で指定されている
+デフォルトのスプールからメールを取り込みます。このような場合、通常スプールのメールは消去されますが、
+<code>-P</code> (preserve) オプションをつけることによりメールをスプールに残すことができます。
+いっぽう、デフォルトでないスプールからメールを取り込んだ場合は
+<code>-E</code> (erase) オプションをつけないかぎり、そのスプールの内容が削除されることはありません。
+<ul>
+<li> <code>-q</code> (quiet) : 新しく届いたメールの一覧を表示しません。
+<li> <code>-E</code> (erase) : スプール中のメールをすべて削除します (スプール名を省略した場合は、この動作がデフォルト)。
+<li> <code>-P</code> (preserve) : スプール中のメールを削除しません (スプール名を指定した場合は、この動作がデフォルト)。
+<li> <code>-r <em>規則ファイル</em></code> (rule) : 取り込んだメールをラベルづけするときの規則ファイルを指定します。
+デフォルトでは、<code>.shalingrc</code> で指定されている規則ファイルが使われます。
+<li> <code>+<em>ラベル</em></code> : 取り込んだメールすべてにこのラベルを追加します。
+</ul>
+<p>
+
+<dt> <code>label [-R] {+<em>ラベル</em>|-<em>ラベル</em>} ... <em>インデックス番号1 インデックス番号2</em> ...</code>
+<dd> メールにラベルをつけます
+(cf. <a href="#label">メールにラベルをつける</a>)。
+通常ラベルは追加 (<code>+<em>ラベル</em></code>) あるいは削除 (<code>-<em>ラベル</em></code>) され、
+すでにメールについている他のラベルはそのまま残されます。
+<ul>
+<li> <code>-R</code> (reset) : 現在メールにつけられているラベルをすべて削除し、
+指定されたラベルのみがついた状態にします。
+<li> <code>+<em>ラベル</em></code> : メールにラベルを追加します。
+<li> <code>-<em>ラベル</em></code> : メールからラベルを削除します。
+</ul>
+<p>
+
+<dt> <code>mime [-R] [-m <em>MIME形式</em>] [-c <em>文字コード</em>] <em>インデックス番号</em>:[<em>パート番号</em>] [<em>ファイル名</em> ...]</code>
+<dd> メール中の添付ファイルを操作します 
+(cf. <a href="#attachments">添付ファイルの操作</a>)。
+<em>パート番号</em>が与えられない場合は指定されたメールに
+<em>ファイル名</em>で指定される添付ファイルを追加し、
+<em>パート番号</em>が与えられた場合はそのメール中の指定されたパートの添付ファイルを置き換えます。
+<code>-R</code> (remove) オプションが指定された場合、そのパートの添付ファイルを除去します。
+なお、添付ファイルの MIME 形式については、ファイル名から推測されるものであれば自動的に推測されますが、
+そうでない場合は <code>-m</code> (mimetype) オプションで指定する必要があります。
+テキストファイルを添付する場合は、<code>-c</code> (encoding) でオプションで
+文字コードを指定する必要があります。
+<ul>
+<li> <code>-R</code> (remove) : 指定されたパート番号の添付ファイルを除去します。
+<li> <code>-m</code> (mimetype) : 添付するファイルの MIME 形式 (<code>text/plain</code> など) を指定します。
+<li> <code>-c</code> (encoding) : テキストファイルを添付する場合、添付ファイルの文字コードを指定します。
+</ul>
+<p>
+
+<dt> <code>resolve <em>宛て先1</em> <em>宛て先2</em> ...</code>
+<dd> 指定された宛て先に対応するアドレスを表示します。
+宛て先は <code>From:</code>, <code>To:</code>, <code>Cc:</code> のいずれかに含まれている
+アドレスから検索されます。複数の候補が見つかった場合は過去 10件の統計をとり、
+それらのアドレスを頻度の高い順に表示します。
+<p>
+
+<dt> <code>scan [-n <em>表示メール数</em>] [-a] [-P|-N] [-O] [<em>検索条件1</em> <em>検索条件2</em> ...]</code>
+<dd> 与えられた検索条件でデータベース中のメールを検索し、選択状態にします
+(cf. <a href="#search">メールを検索する</a>)。
+検索条件が省略された場合は、現在選択されているメールの一覧を表示します。
+通常は "deleted" (消去されたメール)、"junk" (ジャンクメール)、あるいは "sent" (送信したメール) の
+ラベルがついたメールは表示されませんが、これらは <code>-a</code> オプションを与えることで表示できます。
+なお、一度に表示されるメールはデフォルトでは 20件で、この数は <code>-n</code> オプションによって変更できます
+(<code>-n 0</code> を指定すると選択されているすべてのメールを表示します)。
+途中までしか表示されなかった一覧は、<code>-P</code> あるいは <code>-N</code> あるいはオプションを
+追加することで「前の 20件」「次の 20件」をそれぞれ表示できます。
+(デフォルトでは、
+これは <code>prev</code> と <code>next</code> というコマンドエイリアスにそれぞれ割り当てられています。)
+<ul>
+<li> <code>-a</code> (all) : すべてのメールを表示します。デフォルトでは、
+"deleted" (消去されたメール)、"junk" (ジャンクメール)、あるいは "sent" (送信したメール) の
+ラベルがついたメールは表示されません。
+<li> <code>-n <em>表示メール数</em></code> : 一度に表示されるメールの数を指定します。
+0 を指定すると選択されているすべてのメールを表示します。
+<li> <code>-P</code> (previous) : 現在までに表示された選択の前の部分を表示します。
+<li> <code>-N</code> (next) : 現在までに表示された選択の次の部分を表示します。
+<li> <code>-R</code> (reset) : 選択範囲の一番先頭に戻って表示します。
+<li> <code>-O</code> (Or) : 検索条件を and ではなく or でまとめたものと解釈します。
+</ul>
+<p>
+
+<dt> <code>send [-q] [-f] <em>インデックス番号1 インデックス番号2</em> ...</code>
+<dd> メールを SMTP サーバに送信します (cf. <a href="#compose">メールを書く</a>)。
+送信できるメールは "draft" のラベルがついているものだけです。
+送信時にはメールのヘッダがチェックされ、送り元と宛て先アドレスの一覧が表示されます。
+送信したメールは "sent" のラベルがつけられ、
+以後検索結果には (デフォルトでは) 含まれなくなります。
+<ul>
+<li> <code>-q</code> (quiet) : 送信時に送り元と宛て先アドレスの一覧を表示しません。
+<li> <code>-f</code> (forcibly) : 送信時にヘッダの厳密なチェックを行いません。
+メールの Subject: (件名) がついていないメールでも強制的に送信します。
+</ul>
+<p>
+
+<dt> <code>sel [-q] [-n <em>表示メール数</em>] [<em>選択範囲番号</em>]</code>
+<dd> Shaling では、デフォルトで過去 10個までの選択範囲が保存されています。
+このコマンドは現在保存されている選択範囲の一覧を表示したり、
+以前の選択範囲に戻したりするのに使います。
+引数なしで <code>sel</code> コマンドを実行すると、
+現在保存されている選択をすべて表示します。
+このさい <code>-n</code> オプションで<em>表示メール数</em>を指定すると、
+実際にその選択範囲における最初のメールを何件か表示します。
+引数に選択範囲番号をつけて <code>sel</code> コマンドを実行すると、以前の選択範囲を復元します。
+<ul>
+<li> <code>-q</code> (quiet) : 選択範囲を変更したあとに、<code>scan</code> を実行しません。
+<li> <code>-n <em>表示メール数</em></code> : デフォルト値は 0 です。
+</ul>
+<p>
+
+<dt> <code>show [-l] [-a] [-h] [-c <em>文字集合</em>] [-P|-N] [<em>インデックス番号1[:パート番号1] インデックス番号2[:パート番号1]</em> ...]</code>
+<dd> 指定されたメールの内容を表示します
+(cf. <a href="#search">メールを検索する</a>)。
+1画面に入りきらない場合は、最初の部分だけが端末の大きさに合わせて折り返し・切り取りが行われます。
+メールに添付ファイルがつけられている場合、
+<code><em>パート番号</em></code>が指定されている場合はその部分だけを表示し、
+<code><em>パート番号</em></code>が指定されていない場合はメール全体を表示した後に
+添付ファイルとパート番号の対応一覧が表示されます。
+なお、画像などの添付ファイルを表示するさいには
+<code>.shalingrc</code> 設定ファイルの <code>MIME_HELPER</code> で指定された
+外部プログラムを使います。
+インデックス番号が指定されない場合は現在着目されているメールを表示します。
+いちど表示されたメールは「着目された」状態になり、
+ここから <code>-P</code> または <code>-N</code> オプションで、
+着目しているメールを前後に移動させることができます。
+<ul>
+<li> <code>-l</code> (list) : メールを (<code>scan</code> コマンドのような) ダイジェスト形式で表示します。
+<li> <code>-a</code> (all) : メール全体を表示します。このとき、ページャには
+<code>.shalingrc</code> 設定ファイルの <code>DEFAULT_PAGER</code> で指定されているプログラムが使用されます。
+<li> <code>-h</code> (header) : メール中のすべてのヘッダを表示します。
+<li> <code>-c</code> (encoding) : テキスト形式の添付ファイルを表示する場合の文字コードを指定します。
+<li> <code>-P</code> (previous) : 一覧中で、現在表示している (着目している) メールのひとつ前のメールを表示します。
+<li> <code>-N</code> (next) : 一覧中で、現在表示している (着目している) メールの次のメールを表示します。
+</ul>
+<p>
+
+<dt> <code>thread [<em>インデックス番号1 インデックス番号2 ...</em>]</code>
+<dd> 指定されたメールに関連するスレッドのメールをすべて選択します。
+なお、このコマンドは、シェル上で
+<code>scan &quot;references: `get -F message-id,in-reply-to,references`&quot;</code>
+を実行したのと同じです。
+<p>
+
+</dl>
+
+<a name="aliases"></a>
+<h4>エイリアスによって実現されているコマンド</h4>
+<p>
+以下のコマンドはデフォルトでエイリアスによって実現されています。
+これらのエイリアスは <code>.shalingrc</code> の <code>COMMAND_ALIASES</code> 変数によって
+変更することができます。
+<ul>
+<li> <code>all</code>: データベース中のすべてのメール一覧を表示します。 (<code>scan all</code>)
+<li> <code>next</code>: 一覧表示における次の 20件を表示します。 (<code>scan -N</code>)
+<li> <code>prev</code>: 一覧表示における前の 20件を表示します。 (<code>scan -P</code>)
+<li> <code>first</code>: 一覧表示の最初から表示します。 (<code>scan -R</code>)
+<li> <code>draft</code>: 書きかけの ("draft" のラベルがついている) メールを選択します。 (<code>scan +draft</code>)
+<li> <code>sent</code>: これまでに送信した ("sent" のラベルがついている) メールを選択します。 (<code>scan +sent</code>)
+<li> <code>n</code>: 現在注目している次のメールの内容を表示します。 (<code>show -N</code>)
+<li> <code>p</code>: 現在注目している前のメールの内容を表示します。(<code>show -P</code>)
+<li> <code>repl</code>: メールに返信 (reply) します。 (<code>comp -r</code>)
+<li> <code>forw</code>: メールを転送 (forward) します。 (<code>comp -F</code>)
+<li> <code>rmm</code>: メールを削除 ("deleted" のラベルをつける) します。 (<code>label -R +deleted</code>)
+<li> <code>back</code>: 現在のひとつ前の選択範囲に戻します。 (<code>sel 1</code>)
+</ul>
+
+<hr noshade>
+<a name="techinfo"></a>
+<h3>技術的な情報</h3>
+<ul>
+<li> メールはすべて tar 形式で保存。各レコードは gzip 圧縮されている。
+<li> 検索ライブラリには <a href="http://www.unixuser.org/~euske/python/fooling/">Fooling</a> を使用。
+<li> 選択範囲は pickle して <code>~/Mail/sel/</code> に保存。
+</ul>
+
+<hr noshade>
+<a name="todos"></a>
+<h3>バグ・TODO</h3>
+<ul>
+<li> テスト、テスト、テスト。
+<li> ソースコードのコメント。
+<li> エラー処理の改善。(まだ補足しそこねた例外がありそう)
+<li> ラベルのみで検索すると遅いのを改善。
+<li> ドキュメンテーションの充実。
+<li> 印刷のサポート (PrintInterface)。
+<li> オンラインヘルプ。
+<li> pop3 サポート。
+<li> CGI化。
+</ul>
+
+<hr noshade>
+<a name="license"></a>
+<h3>ライセンス</h3>
+<p>
+(いわゆる MIT/X ライセンスです、改変・再配布および商品への組み込みはご自由に)
+<p>
+<small>
+Copyright (c) 2006-2007  Yusuke Shinyama &lt;yusuke at cs dot nyu dot edu&gt;
+<p>
+Permission is hereby granted, free of charge, to any person
+obtaining a copy of this software and associated documentation
+files (the "Software"), to deal in the Software without
+restriction, including without limitation the rights to use,
+copy, modify, merge, publish, distribute, sublicense, and/or
+sell copies of the Software, and to permit persons to whom the
+Software is furnished to do so, subject to the following
+conditions:
+<p>
+The above copyright notice and this permission notice shall be
+included in all copies or substantial portions of the Software.
+<p>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
+KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE
+WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR
+PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR
+COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+</small>
+
+<hr noshade>
+<address>Yusuke Shinyama</address>
+</body>
