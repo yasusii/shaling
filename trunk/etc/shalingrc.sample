@@ -1,0 +1,65 @@
+# -*- python -*-
+
+# Sample .shalingrc
+HOME = '/home/username'
+TOP_DIR = HOME+'/Mail/'
+SPOOL = HOME+'/.Maildir/new/'
+MY_FROM = 'Your Name <yourname@your.domain>'
+EDITOR = 'emacs %s'
+SMTP_HOST = ('smtp-server.your.domain', 25, , 'username', 'password', False)
+
+RULES = [
+  # HOME+'/rules.sample'
+  ]
+
+TERMINAL_CHARSET = 'euc-jp'
+MESSAGE_CHARSET = 'iso-2022-jp'
+
+LABELS = {
+  'i': 'important',
+  't': 'to',
+  'a': 'admin',
+  'u': 'univ',
+  'l': 'ml',
+  'F': 'sf',
+  'N': 'nyc',
+  'L': 'lisp',
+  'S': 'ssh',
+}
+
+MESSAGE_COLOR = [
+  # colors for predefined labels
+  ('junk', 'blue'),
+  ('draft', 'bold'),
+  ('sent', 'magenta'),
+  ('deleted', 'blue'),
+  
+  ('important', 'yellow'),
+  ('to', 'default'),
+  ('admin', 'red'),
+  ('univ', 'cyan'),
+  ('ml', 'green'),
+  ('nyc', 'cyan'),
+  ]
+
+COMMAND_ALIASES = {
+  'all': 'scan all',
+  'next': 'scan -N',
+  'prev': 'scan -P',
+  'first': 'scan -R',
+  'draft': 'scan +draft',
+  'sent': 'scan +sent',
+  'n': 'show -N',
+  'p': 'show -P',
+  'forw': 'comp -F',
+  'repl': 'comp -r',
+  'rmm': 'label -R +deleted',
+  'back': 'sel 1',
+  }
+
+ADDRESS_ALIASES = {
+  'me': 'Your Name <yourname@your.domain>',
+  'nylug': 'NYLUG discussion list <nylug-talk@nylug.org>',
+  'nycbug': 'NYCBUG talk <talk@lists.nycbug.org>',
+  'lispnyc': 'LispNYC <lisp@lispnyc.org>',
+}

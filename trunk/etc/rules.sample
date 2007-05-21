@@ -1,0 +1,39 @@
+# Sample rules
+
+# banned address
+[junk!]
+	To: spameater@my.domain
+[junk!]
+	Date: future
+
+# to
+[to]
+	To: yusuke@my.domain
+[to]
+	To: ys@my.school
+[to]
+	To: euske@my.provider
+
+# mailing lists
+[ml,nlp]
+	To: nlp@some.address
+[ml,nylug]
+	Subject: \[nylug
+[ml,nycbug]
+	Subject: \[nycbug
+[ml,lisp]
+	Subject: \[lisp
+[ml,ssh]
+	To: www@*openbsd.org
+
+# admin
+[admin]
+	From: root@
+
+[univ]
+	-Label: *
+	From: @*my.school.edu
+
+# others
+[junk]
+	-Label: *
