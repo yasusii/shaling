@@ -4,12 +4,6 @@ import config
 from utils import unique_name
 
 
-class InterfaceError(RuntimeError): pass
-class InterfaceCancelled(InterfaceError): pass
-class InterfaceUnauthorized(InterfaceError): pass
-class InterfaceAbort(InterfaceError): pass
-
-
 def charwidth(c):
   if u'\u2000' <= c: return 2
   return 1
@@ -18,6 +12,11 @@ def charwidth(c):
 ##  Interface
 ##
 class Interface:
+
+  class InterfaceError(Exception): pass
+  class Cancelled(InterfaceError): pass
+  class Unauthorized(InterfaceError): pass
+  class Aborted(InterfaceError): pass
 
   UNPRINTABLE = re.compile('')
   
@@ -76,19 +75,19 @@ class Interface:
   # "interactive" features.
   
   def prompt(self, question):
-    raise InterfaceError('Unsupported on this terminal.')
+    raise Interface.InterfaceError('Unsupported on this terminal.')
 
   def wait_finish(self):
-    raise InterfaceError('Unsupported on this terminal.')
+    raise Interface.InterfaceError('Unsupported on this terminal.')
 
   def save_file(self, data, filename, confirm=False):
-    raise InterfaceError('Unsupported on this terminal.')
+    raise Interface.InterfaceError('Unsupported on this terminal.')
 
   def load_file(self, filename):
-    raise InterfaceError('Unsupported on this terminal.')
+    raise Interface.InterfaceError('Unsupported on this terminal.')
 
   def edit_text(self, kernel, loc, data):
-    raise InterfaceError('Unsupported on this terminal.')
+    raise Interface.InterfaceError('Unsupported on this terminal.')
 
 
 ##  DumbTerminalInterface
@@ -119,7 +118,7 @@ class DumbTerminalInterface(Interface):
     if not confirm and filename == '-':
       self.outfp.write(data)
     else:
-      raise InterfaceError('Unsupported on this terminal.')
+      raise Interface.InterfaceError('Unsupported on this terminal.')
       
 
 ##  ColorTerminalInterface
@@ -176,7 +175,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
     import tempfile
     prog = config.MIME_HELPER.get(mimetype)
     if not prog:
-      raise InterfaceAbort("Cannot display to a terminal: %s" % mimetype)
+      raise Interface.Aborted("Cannot display to a terminal: %s" % mimetype)
     fp = tempfile.NamedTemporaryFile(prefix=unique_name('view'), dir=config.TMP_DIR)
     fp.write(data)
     fp.flush()
@@ -184,7 +183,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
     status = os.WEXITSTATUS(os.system(cmdline))
     fp.close()
     if status:
-      raise InterfaceAbort("Viewer aborted: (%04x) %r" % (status, cmdline))
+      raise Interface.Aborted("Viewer aborted: (%04x) %r" % (status, cmdline))
     return
 
   def prompt(self, question):
@@ -193,7 +192,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
     try:
       s = raw_input().strip()
     except (KeyboardInterrupt, EOFError):
-      raise InterfaceCancelled('Cancelled.')
+      raise Interface.Cancelled('Cancelled.')
     return s
 
   def save_file(self, data, filename, confirm=False):
@@ -207,7 +206,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
         fp.write(data)
         fp.close()
     except IOError, e:
-      raise InterfaceAbort(e)
+      raise Interface.Aborted(e)
     return
       
   def load_file(self, filename):
@@ -216,7 +215,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
       data = fp.read()
       fp.close()
     except IOError, e:
-      raise InterfaceAbort(e)
+      raise Interface.Aborted(e)
     return (os.path.basename(filename), data)
 
   # text: unicode string
@@ -232,9 +231,9 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
     cmdline = config.EDITOR % fp.name
     status = os.WEXITSTATUS(os.system(cmdline))
     if status:
-      raise InterfaceAbort("Editor aborted: (%04x) %r" % (status, cmdline))
+      raise Interface.Aborted("Editor aborted: (%04x) %r" % (status, cmdline))
     if modtime(fname) <= t0:
-      raise InterfaceCancelled("Edit cancelled.")
+      raise Interface.Cancelled("Edit cancelled.")
     fp = file(fname, 'rb')
     data = self.from_terminal(fp.read())
     fp.close()
@@ -254,7 +253,7 @@ class PagerTerminalInterface(DumbTerminalInterface):
     try:
       self.child = Popen(config.DEFAULT_PAGER, stdin=PIPE, stdout=None, stderr=STDOUT)
     except OSError, e:
-      raise InterfaceAbort(e)
+      raise Interface.Aborted(e)
     DumbTerminalInterface.__init__(self, self.child.stdin, charset)
     return
   
