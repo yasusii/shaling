@@ -9,23 +9,8 @@ from getopt import getopt, GetoptError
 from utils import rmsp, unique_name, escape_unsafe_chars, unicode_getalladdrs, unicode_getaddrs, \
      formataddr, msg_repr, get_msgids, get_message_part, MessagePartNotFoundError, \
      validate_message_headers, MessageFormatError
-from maildb import MailCorpus, LabelPass, LabelBlock, DEFAULT_FILTER, DEFAULT_FILTER_WITH_SENT
+from maildb import MailCorpus, LabelPredicate, DEFAULT_FILTER, DEFAULT_FILTER_WITH_SENT
 from fooling.selection import EMailPredicate, Selection, DummySelection, SearchTimeout
-
-
-##  KernelError
-##
-class ShowUsage(RuntimeError): pass
-class KernelError(RuntimeError): pass
-class KernelSyntaxError(KernelError): pass
-class KernelValueError(KernelError): pass
-
-
-def safeint(x):
-  try:
-    return int(x)
-  except ValueError:
-    raise KernelValueError('Invalid argument (integer expected): %r' % x)
 
 
 ##  MailSelection
@@ -136,7 +121,7 @@ class WindowMixin:
         try:
           docs.append((i, self.get(i), p))
         except IndexError:
-          raise KernelValueError('Invalid index: %d' % (i+1))
+          raise Kernel.ValueError('Invalid index: %d' % (i+1))
       self.focus = focus
       if self.focus < self.window_start or self.window_end < self.focus:
         self.window_start = self.window_end = self.focus
@@ -144,11 +129,10 @@ class WindowMixin:
 
 class MailSelection(Selection, WindowMixin):
 
-  def __init__(self, corpus, term_preds, doc_preds=None, ext_preds=None, disjunctive=False, window_size=0):
+  def __init__(self, corpus, term_preds, doc_preds=None, disjunctive=False, window_size=0):
     # safe=False : we don't want to skip "future" messages.
     WindowMixin.__init__(self, window_size)
     Selection.__init__(self, corpus, term_preds, doc_preds, safe=False, disjunctive=disjunctive)
-    self.ext_preds = ext_preds
     return
 
   def estimation(self):
@@ -158,9 +142,8 @@ class MailSelection(Selection, WindowMixin):
       return 'about %d messages' % self.nresults
 
   def description(self):
-    r = [ '"%s"' % rmsp(pred.q) for pred in self.get_preds() ]
-    if self.ext_preds:
-      r.extend(self.ext_preds)
+    r = [ '"%s"' % rmsp(unicode(pred)) for pred in self.get_preds() if unicode(pred) ]
+    r.extend( '"%s"' % rmsp(unicode(pred)) for pred in self.doc_preds if unicode(pred) )
     return ' '.join(r) or 'all'
 
 class DummyMailSelection(DummySelection, WindowMixin):
@@ -183,9 +166,14 @@ class DummyMailSelection(DummySelection, WindowMixin):
 ##
 class Kernel:
 
+  class ShowUsage(Exception): pass
+  class KernelError(Exception): pass
+  class SyntaxError(KernelError): pass
+  class ValueError(KernelError): pass
+  
   def __init__(self, terminal):
     if not config.TOP_DIR:
-      raise KernelError('TOP_DIR is not configured!')
+      raise Kernel.KernelError('TOP_DIR is not configured!')
     self.terminal = terminal
     self.corpus = {}
     self.current_selection = None
@@ -215,10 +203,10 @@ class Kernel:
       return self.current_selection
     selections = self.list_selections()
     if not selections:
-      raise KernelValueError('No message is selected.')
+      raise Kernel.ValueError('No message is selected.')
     self.save_current_selection()
     fp = file(selections[i], 'rb')
-    MailCorpus.register_corpus_handler(self.get_corpus)
+    MailCorpus.register_singleton_handler(self.get_corpus)
     self.current_selection = pickle.load(fp)
     fp.close()
     return self.current_selection
@@ -287,7 +275,7 @@ class Kernel:
         try:
           c = config.str2label(name)
           yield c
-        except KeyError:
+        except config.UnknownLabel:
           pass
       return
     labels = set(get_labels(labels))
@@ -323,7 +311,7 @@ class Kernel:
   def resolve_address(self, addr):
     r = {}
     pat = re.compile(re.escape(addr), re.I | re.UNICODE)
-    preds = [ EMailPredicate('addr:'+addr) ]
+    preds = [ EMailPredicate('addr:'+addr, yomip=config.INDEX_YOMI) ]
     corpus = self.get_corpus()
     try:
       selection = Selection(corpus, preds, doc_preds=[ DEFAULT_FILTER_WITH_SENT ], safe=False)
@@ -344,13 +332,21 @@ class Kernel:
     # ambiguous?
     return sorted(r.itervalues(), reverse=True)
 
+  # safeint
+  @staticmethod
+  def safeint(x):
+    try:
+      return int(x)
+    except ValueError:
+      raise Kernel.ValueError('Invalid argument (integer expected): %r' % x)
+
   # cmd_scan
   def cmd_scan(self, args):
     'usage: scan [-q] [-n nmsgs] [-S selection] [-a)ll] [-P)rev|-N)ext|-R)eset] [-O)r] predicates ...'
     try:
       (opts, args) = getopt(args, 'qn:S:aPNRO')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     # Get command line options.
     verbose = 1
     nmsgs = config.SCAN_DEFAULT_MSGS
@@ -360,8 +356,8 @@ class Kernel:
     rel = 0
     for (k,v) in opts:
       if k == '-q': verbose -= 1
-      elif k == '-n': nmsgs = safeint(v)
-      elif k == '-S': selection = safeint(v)
+      elif k == '-n': nmsgs = Kernel.safeint(v)
+      elif k == '-S': selection = Kernel.safeint(v)
       elif k == '-a':
         search_all = True
         if not args: args = ['all']
@@ -387,52 +383,36 @@ class Kernel:
         else:
           selection = MailSelection(corpus, [], doc_preds=[ DEFAULT_FILTER ], window_size=nmsgs)
       else:
-        # "scan something"
+        # scan "something"
         term_preds = []
         label_preds = []
-        label_pass = set()
-        if search_all:
-          label_block = set()
-        else:
-          label_block = config.FILTERED_LABELS.copy()
+        doc_preds = [ DEFAULT_FILTER ]
         for kw in args:
-          if kw and kw[0] not in '+-!': 
-            term_preds.append(EMailPredicate(kw))
+          if not kw: continue
+          if kw[0] != '+': 
+            term_preds.append(EMailPredicate(kw, yomip=config.INDEX_YOMI))
             continue
-          if kw.startswith('!') or kw.startswith('-'):
-            kw = kw[1:]
-            neg = True
-          elif kw.startswith('+-') or  kw.startswith('+!'):
-            kw = kw[2:]
-            neg = True
-          else:
-            kw = kw[1:]
-            neg = False
+          kw = kw[1:]
+          if not kw:
+            raise Kernel.SyntaxError('Invalid label spec.')
           try:
-            label = config.str2label(kw)
-          except KeyError, e:
-            raise KernelValueError('Unknown label: %s' % e)
-          if neg:
-            label_preds.append('-'+kw)
-            label_block.add(label)
-            if label in label_pass:
-              label_pass.remove(label)
-          else:
-            label_preds.append('+'+kw)
-            label_pass.add(label)
-            if label in label_block:
-              label_block.remove(label)
-        doc_preds = []
-        if label_block:
-          doc_preds.append(LabelBlock(label_block))
-        if label_pass:
-          doc_preds.append(LabelPass(label_pass))
-        selection = MailSelection(corpus, term_preds, doc_preds, label_preds,
+            if kw[0] in '!-':
+              pred = LabelPredicate(corpus.get_labeldb(), kw[1:], True)
+            else:
+              pred = LabelPredicate(corpus.get_labeldb(), kw, False)
+              if config.str2label(kw) in config.FILTERED_LABELS:
+                doc_preds = []
+          except config.UnknownLabel, e:
+            raise Kernel.ValueError('Unknown label: %s' % e)
+          label_preds.append(pred)
+        if search_all:
+          doc_preds = []
+        selection = MailSelection(corpus, term_preds+label_preds, doc_preds,
                                   disjunctive=disjunctive, window_size=nmsgs)
 
     # Perform search.
     n = selection.list_messages(self.terminal, verbose)
-    if not n: raise KernelValueError('Not found.')
+    if not n: raise Kernel.ValueError('Not found.')
     # Save the search results.
     self.set_selection(selection)
     return
@@ -443,7 +423,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'qlahc:PN')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     verbose = 1
     dolist = False
@@ -474,7 +454,7 @@ class Kernel:
       try:
         message.show_mime_part(self.terminal, doc.get_msg(0), part, headerlevel, charset)
       except MessagePartNotFoundError:
-        raise KernelValueError('Message part not found.')
+        raise Kernel.ValueError('Message part not found.')
     return
 
   # cmd_get
@@ -483,7 +463,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'f:F:c:o:')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     fields = []
     outputfile = None
@@ -500,7 +480,7 @@ class Kernel:
         message.show_headers(self.terminal, doc, fields)
       return
     if len(docs) != 1:
-      raise KernelSyntaxError('Can save only one file at a time.')
+      raise Kernel.SyntaxError('Can save only one file at a time.')
     (_,doc,part) = docs[0]
     confirm = False
     if part == None:
@@ -511,13 +491,13 @@ class Kernel:
       try:
         mpart = get_message_part(doc.get_msg(0), part)
       except MessagePartNotFoundError:
-        raise KernelValueError('Message part not found.')
+        raise Kernel.ValueError('Message part not found.')
       if not outputfile:
         outputfile = escape_unsafe_chars(mpart.get_filename() or '')
         confirm = True
       data = mpart.get_payload(decode=True)
     if not outputfile:
-      raise KernelValueError('Speficy the filename to save.')
+      raise Kernel.ValueError('Speficy the filename to save.')
     self.terminal.save_file(data, outputfile, confirm)
     return
 
@@ -527,9 +507,9 @@ class Kernel:
     try:
       (opts, args) = getopt(args, '')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
-    if not args: raise ShowUsage()
+    if not args: raise Kernel.ShowUsage()
     for addr in args:
       if addr in config.ADDRESS_ALIASES:
         self.terminal.notice('%s: by alias' % addr)
@@ -553,7 +533,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'grFs:')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     group = False
     reply = False
@@ -568,20 +548,20 @@ class Kernel:
     if (forward or reply) and not args:
       args = ['.']
     elif not args:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     # Setup a template text.
     # First, get recipient addresses.
     (addrs_to, addrs_cc, addrs_bcc) = ([], [], [])
     try:
       (docs, args) = self.get_messages(args)
-    except KernelValueError:
+    except Kernel.ValueError:
       docs = []
     for arg in args:
       if arg.startswith('+'):
         try:
           labels = config.str2label(arg[1:])
-        except KeyError, e:
-          raise KernelValueError('Unknown label: %s' % e)
+        except config.UnknownLabel, e:
+          raise Kernel.ValueError('Unknown label: %s' % e)
       elif arg.startswith('to:'):
         addrs_to.extend(arg[3:].split(','))
       elif arg.startswith('cc:'):
@@ -591,20 +571,20 @@ class Kernel:
       else:
         addrs_to.extend(arg.split(','))
     if (not docs or forward) and not (addrs_to or addrs_cc or addrs_bcc):
-      raise KernelSyntaxError('At least one recipient is required.')
+      raise Kernel.SyntaxError('At least one recipient is required.')
     if (forward or reply) and not docs:
-      raise KernelSyntaxError('Specify the message to reply/forward.')
+      raise Kernel.SyntaxError('Specify the message to reply/forward.')
     
     def resolve1(addr):
       if '@' in addr: return addr
       if addr in config.ADDRESS_ALIASES: return config.ADDRESS_ALIASES[addr]
       r = self.resolve_address(addr)
       if not r:
-        raise KernelValueError('Cannot resolve address: %s' % addr)
+        raise Kernel.ValueError('Cannot resolve address: %s' % addr)
       (n, x) = r[0]
       threshold = int(len(r)*config.RESOLVE_ADDRESS_RATIO + 0.5)
       if n <= threshold:
-        raise KernelValueError('Ambiguous address: %s: %s' % (addr, ', '.join( a for (n,a) in r )))
+        raise Kernel.ValueError('Ambiguous address: %s: %s' % (addr, ', '.join( a for (n,a) in r )))
       return x
     
     addrs_to = [ resolve1(addr) for addr in addrs_to ]
@@ -634,7 +614,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'f')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     force = False
     for (k,v) in opts:
@@ -644,10 +624,10 @@ class Kernel:
     if args:
       self.terminal.warning('Arguments ignored: %r' % args)
     if len(docs) != 1:
-      raise KernelSyntaxError('Can edit only one message at a time.')
+      raise Kernel.SyntaxError('Can edit only one message at a time.')
     (_,doc,part) = docs[0]
     if not force and (config.LABEL4DRAFT not in doc.labels):
-      raise KernelValueError('Message not in the draft.')
+      raise Kernel.ValueError('Message not in the draft.')
     data = message.get_editable_string(doc.get_msg(0), doc.labels)
     return self.terminal.edit_text(self, data, doc.loc)
 
@@ -657,7 +637,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'Rm:c:')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     charset = None
     mimetype = None
@@ -671,11 +651,11 @@ class Kernel:
     corpus = self.get_selection().get_corpus()
     corpus.set_writable()
     if len(docs) != 1:
-      raise KernelSyntaxError('Can edit only one message at a time.')
+      raise Kernel.SyntaxError('Can edit only one message at a time.')
     #
     (_,doc,part) = docs[0]
     if config.LABEL4DRAFT not in doc.labels:
-      raise KernelValueError('Message not in the draft.')
+      raise Kernel.ValueError('Message not in the draft.')
     msg = doc.get_msg(0)
     if remove:
       # Remove an attachment.
@@ -685,13 +665,13 @@ class Kernel:
     elif part:
       # Replace an attachment.
       if len(args) != 1:
-        raise KernelSyntaxError('Need to supply exactly one filename.')
+        raise Kernel.SyntaxError('Need to supply exactly one filename.')
       (fname, data) = self.terminal.load_file(args[0])
       obj = message.mime_new(fname, data, mimetype, charset)
       msg = message.mime_alter(msg, part, obj)
     else:
       if not args:
-        raise KernelSyntaxError('Need to supply attachment(s).')
+        raise Kernel.SyntaxError('Need to supply attachment(s).')
       # Append an object.
       for fname in args:
         (fname, data) = self.terminal.load_file(fname)
@@ -708,7 +688,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'qR')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     reset = False
     verbose = 1
@@ -720,7 +700,7 @@ class Kernel:
     if not docs:
       (docs, _) = self.get_messages(['.'])
       if not docs:
-        raise KernelSyntaxError('No message is specified.')
+        raise Kernel.SyntaxError('No message is specified.')
     label_add = set()
     label_del = set()
     for kw in args:
@@ -735,8 +715,8 @@ class Kernel:
         neg = False
       try:
         label = config.str2label(kw)
-      except KeyError, e:
-        raise KernelValueError('Unknown label: %s' % e)
+      except config.UnknownLabel, e:
+        raise Kernel.ValueError('Unknown label: %s' % e)
       if neg:
         label_del.add(label)
       else:
@@ -747,10 +727,11 @@ class Kernel:
     # Reopen the corpus.
     for (_,doc,part) in docs:
       if reset:
-        labels = label_add
+        doc.del_label(doc.labels)
+        doc.add_label(label_add)
       else:
-        labels = doc.labels.union(label_add).difference(label_del)
-      corpus.set_label(doc.loc, labels)
+        doc.del_label(label_del)
+        doc.add_label(label_add)
     # Redisplay the selection.
     if 0 < verbose:
       self.get_selection().list_messages(self.terminal, verbose)
@@ -762,7 +743,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'qf')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     force = False
     verbose = 1
@@ -774,16 +755,16 @@ class Kernel:
     if args:
       self.terminal.warning('Arguments ignored: %r' % args)
     if not docs:
-      raise KernelSyntaxError('No message is specified.')
+      raise Kernel.SyntaxError('No message is specified.')
     msgs = []
     for (i,doc,part) in docs:
       if config.LABEL4DRAFT not in doc.labels:
-        raise KernelValueError('Message not in the draft: %d' % (i+1))
+        raise Kernel.ValueError('Message not in the draft: %d' % (i+1))
       msg = doc.get_msg(0)
       try:
         (fromaddr, rcpts) = validate_message_headers(msg, not force)
       except MessageFormatError, e:
-        raise KernelValueError('%s: message %d' % (e, i+1))
+        raise Kernel.ValueError('%s: message %d' % (e, i+1))
       msgs.append((doc.loc, msg, fromaddr, rcpts))
 
     # Move the message from the draft to inbox (sent).
@@ -793,7 +774,7 @@ class Kernel:
       try:
         data = message.send_message(msg, fromaddr, rcpts)
       except message.MessageTransportError, e:
-        raise KernelValueError('%s: %r' % (e, rcpts))
+        raise Kernel.ValueError('%s: %r' % (e, rcpts))
       if verbose:
         self.terminal.notice('From: %r' % fromaddr)
         self.terminal.notice('Rcpt: %r' % rcpts)
@@ -810,7 +791,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'qEPr:')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     labels = [ v[1:] for v in args if v.startswith('+') ]
     spools = [ v for v in args if not v.startswith('+') ]
@@ -829,7 +810,7 @@ class Kernel:
     try:
       ruleset = importer.RuleSet(rules or config.RULES, labels)
     except importer.RuleSetSyntaxError, e:
-      raise KernelValueError('Invalid ruleset: %s' % e)
+      raise Kernel.ValueError('Invalid ruleset: %s' % e)
     corpus = self.get_corpus()
     corpus.set_writable()
     locs = []
@@ -854,7 +835,7 @@ class Kernel:
     try:
       (opts, args) = getopt(args, 'nvRr:')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
     reset = False
     dryrun = False
@@ -870,47 +851,48 @@ class Kernel:
     #
     (docs, args) = self.get_messages(args or ['.'])
     if not docs:
-      raise KernelSyntaxError('No message is specified.')
+      raise Kernel.SyntaxError('No message is specified.')
     # Apply rules.
     try:
       ruleset = importer.RuleSet(rules)
     except importer.RuleSetSyntaxError, e:
-      raise KernelValueError('Invalid ruleset: %s' % e)
+      raise Kernel.ValueError('Invalid ruleset: %s' % e)
     corpus = self.get_selection().get_corpus()
     corpus.set_writable()
     for (i,doc,part) in docs:
-      labels = set(ruleset.apply_msg(doc.get_msg()))
-      if not reset:
-        labels.update(doc.labels)
-      if not dryrun:
-        corpus.set_label(doc.loc, labels)
+      labels_add = set(ruleset.apply_msg(doc.get_msg()))
+      if dryrun:
+        if not reset:
+          labels_add.update(doc.labels)
+      else:
+        if reset:
+          doc.del_label(doc.labels)
+        doc.add_label(labels_add)
       if dryrun or verbose:
-        message.show_digest(self.terminal, i, False, doc, self.get_selection(), labels)
+        message.show_digest(self.terminal, i, False, doc, self.get_selection(), labels_add)
     return
 
   # cmd_sel
   def cmd_sel(self, args):
-    'usage: sel [-q] [-n nmsgs] [selection]'
+    'usage: sel [-q] [selection]'
     try:
-      (opts, args) = getopt(args, 'n:q')
+      (opts, args) = getopt(args, 'q')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     #
-    nmsgs = 0
     verbose = 1
     for (k,v) in opts:
-      if k == '-n': nmsgs = safeint(v)
-      elif k == '-q': verbose = 0
+      if k == '-q': verbose = 0
     #
     selections = self.list_selections()
     if args:
-      selection = self.get_selection(safeint(args[0]))
+      selection = self.get_selection(Kernel.safeint(args[0]))
       if verbose:
         self.cmd_scan([])
     else:
       for (i,fname) in enumerate(selections):
         fp = file(fname, 'rb')
-        MailCorpus.register_corpus_handler(self.get_corpus)
+        MailCorpus.register_singleton_handler(self.get_corpus)
         selection = pickle.load(fp)
         fp.close()
         self.terminal.notice('%2d: %s (%s)' % (i, selection.description(), selection.estimation()))
@@ -934,12 +916,12 @@ class Kernel:
     try:
       (opts, args) = getopt(args, '')
     except GetoptError:
-      raise ShowUsage()
+      raise Kernel.ShowUsage()
     (docs, args) = self.get_messages(args or ['.'])
     if args:
       self.terminal.warning('Arguments ignored: %r' % args)
     if not docs:
-      raise KernelSyntaxError('No message is specified.')
+      raise Kernel.SyntaxError('No message is specified.')
     msgids = set()
     for (_,doc,part) in docs:
       msg = doc.get_msg()

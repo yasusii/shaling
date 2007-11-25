@@ -2,32 +2,34 @@
 
 PACKAGE=shaling
 VERSION=`python -E shaling/__init__.py`
+TAR=tar
+SVN=svn
+
+WORKDIR=..
+DISTNAME=$(PACKAGE)-dist-$(VERSION)
+DISTFILE=$(DISTNAME).tar.gz
 
 all:
 
 clean:
-	-rm *.pyc *.pyo *~
 	-cd shaling; rm *.pyc *.pyo *~
 	-cd shaling/fooling; rm *.pyc *.pyo *~
 
 
-# Packaging:
+# Maintainance:
 
 pack: clean
-	ln -s $(PACKAGE) ../$(PACKAGE)-dist-$(VERSION)
-	gtar c -z -C.. -f ../$(PACKAGE)-dist-$(VERSION).tar.gz $(PACKAGE)-dist-$(VERSION) \
-		--dereference --numeric-owner --exclude '.*' --exclude 'OZOU'
-	rm ../$(PACKAGE)-dist-$(VERSION)
+	$(SVN) cleanup
+	$(SVN) export . $(WORKDIR)/$(DISTNAME)
+	$(TAR) c -z -C$(WORKDIR) -f $(WORKDIR)/$(DISTFILE) $(DISTNAME) --dereference --numeric-owner
+	rm -rf $(WORKDIR)/$(DISTNAME)
 
 publish: pack
-	mv ../$(PACKAGE)-dist-$(VERSION).tar.gz ~/public_html/python/shaling/
+	mv $(WORKDIR)/$(DISTFILE) ~/public_html/python/shaling/
 	cp docs/*.html ~/public_html/python/shaling/
 
-push: clean
-	rs ./ access:work/m/shaling/
-
-
-# Pychecker:
-
 pychecker:
-	pychecker shaling/*.py
+	-pychecker --limit=0 shaling/*.py
+
+commit: clean
+	$(SVN) commit

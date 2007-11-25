@@ -23,6 +23,8 @@ RULES = []
 TERMINAL_CHARSET = 'euc-jp'
 # Default message charset
 MESSAGE_CHARSET = 'iso-2022-jp'
+# Index yomi
+INDEX_YOMI = True
 
 # Colors
 COLOR4INFO = ''
@@ -63,9 +65,9 @@ MIME_HELPER = {
   'text/html': 'lynx -force_html %s',
   'text/plain': 'less %s',
   'image/pdf': 'xpdf %s',
-  'image/png': 'xloadimage %s',
-  'image/gif': 'xloadimage %s',
-  'image/jpeg': 'xloadimage %s',
+  'image/png': 'open %s',
+  'image/gif': 'open %s',
+  'image/jpeg': 'open %s',
   }
 DEFAULT_PAGER = os.environ.get('PAGER', 'less')
 
@@ -149,13 +151,14 @@ LABELS.update({
 
 LABEL_NAME = dict( (name,c) for (c,name) in LABELS.iteritems() )
 
+class UnknownLabel(Exception): pass
 def str2label(s):
   s = str(s.strip())
   if len(s) == 1:
     return s
   if s in LABEL_NAME:
     return LABEL_NAME[s]
-  raise KeyError('Unknown label: %r' % s)
+  raise UnknownLabel(s)
 
 
 # Additional colors

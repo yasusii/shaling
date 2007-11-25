@@ -101,9 +101,9 @@ class ShalingShell(cmd.Cmd):
 
   def execute(self, cmd, args):
     from config import COMMAND_ALIASES
-    from kernel import ShowUsage, KernelError
-    from interface import InterfaceCancelled, InterfaceAbort, InterfaceError
-    from maildb import FileLockError
+    from kernel import Kernel
+    from interface import Interface
+    from maildb import MailCorpus
     from utils import log
     log('execute: %s %r' % (cmd, args))
     if cmd in COMMAND_ALIASES:
@@ -116,20 +116,16 @@ class ShalingShell(cmd.Cmd):
         getattr(self.kernel, f)(args)
       else:
         self.terminal.warning('Unknown command: %s' % cmd)
-    except ShowUsage, e:
+    except Kernel.ShowUsage, e:
       self.terminal.notice(getattr(self.kernel, f).__doc__)
-    except KernelError, e:
+    except Kernel.KernelError, e:
       self.terminal.warning(str(e))
-    except InterfaceError, e:
+    except Interface.InterfaceError, e:
       self.terminal.warning(str(e))
-    except InterfaceAbort, e:
-      self.terminal.warning(str(e))
-    except InterfaceCancelled, e:
-      self.terminal.warning(str(e))
+    except MailCorpus.MailCorpusError, e:
+      self.terminal.warning('Database error: %s' % e)
     except KeyboardInterrupt, e:
       self.terminal.warning('Interrupted.')
-    except FileLockError, e:
-      self.terminal.warning('Database in use: %s' % e)
     return
 
   def do_exit(self, _):
