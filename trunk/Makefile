@@ -13,7 +13,6 @@ all:
 
 clean:
 	-cd shaling; rm *.pyc *.pyo *~
-	-cd shaling/fooling; rm *.pyc *.pyo *~
 
 
 # Maintainance:

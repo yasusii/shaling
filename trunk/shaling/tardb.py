@@ -401,12 +401,11 @@ class TarDB:
 if __name__ == '__main__':
   import unittest
   dirname = './test/'
-  if not os.path.exists(dirname):
-    os.mkdir(dirname)
   
   class TarDBTest(unittest.TestCase):
     
     def setUp(self):
+      os.mkdir(dirname)
       TarDB.create(dirname)
       return
       
@@ -528,7 +527,7 @@ if __name__ == '__main__':
       # opening multiple tars
       db1 = TarDB(dirname).open('r+')
       db2 = TarDB(dirname).open('r')
-      self.assertRaises(FileLock.Failed, lambda : TarDB(dirname).open('r+'))
+      self.assertRaises(TarDB.LockError, lambda : TarDB(dirname).open('r+'))
       files = os.listdir(dirname)
       self.assertTrue('lock' not in files)
       self.assertTrue('lock.locked' in files)
@@ -543,6 +542,7 @@ if __name__ == '__main__':
       for fname in os.listdir(dirname):
         if fname.startswith('.'): continue
         os.unlink(os.path.join(dirname, fname))
+      os.rmdir(dirname)
       return
 
   unittest.main()

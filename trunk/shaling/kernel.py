@@ -6,11 +6,15 @@ except ImportError:
   import pickle
 import config, message
 from getopt import getopt, GetoptError
-from utils import rmsp, unique_name, escape_unsafe_chars, unicode_getalladdrs, unicode_getaddrs, \
-     formataddr, msg_repr, get_msgids, get_message_part, MessagePartNotFoundError, \
-     validate_message_headers, MessageFormatError
-from maildb import MailCorpus, LabelPredicate, DEFAULT_FILTER, DEFAULT_FILTER_WITH_SENT
-from fooling.selection import EMailPredicate, Selection, DummySelection, SearchTimeout
+from utils import rmsp, unique_name, escape_unsafe_chars, \
+     unicode_getalladdrs, unicode_getaddrs, \
+     formataddr, msg_repr, get_msgids, \
+     get_message_part, validate_message_headers, \
+     MessagePartNotFoundError, MessageFormatError
+from maildb import MailCorpus, LabelPredicate, \
+     DEFAULT_FILTER, DEFAULT_FILTER_WITH_SENT
+from fooling.selection import EMailPredicate, YomiEMailPredicate, \
+     Selection, DummySelection, SearchTimeout, canbe_yomi
 
 
 ##  MailSelection
@@ -73,7 +77,8 @@ class WindowMixin:
         if n == self.window_size:
           self.focus = min(self.focus, i)
         if 0 <= verbose:
-          message.show_digest(terminal, i, i == self.focus, doc, self, doc.labels)
+          message.show_digest(terminal, i, i == self.focus,
+                              doc, self, doc.labels)
         else:
           terminal.notice(str(i))
         self.window_end = i
@@ -110,7 +115,8 @@ class WindowMixin:
         focus = n
         idxs.append( (n, m) )
       elif self.RANGE_PAT2.match(arg):  # 's-e'
-        (s,e) = [ max(0, int(x)-1) for x in self.RANGE_PAT2.match(arg).groups() ]
+        (s,e) = [ max(0, int(x)-1) for x
+                  in self.RANGE_PAT2.match(arg).groups() ]
         focus = e
         idxs.extend( (i, None) for i in range(s, e+1) )
       else:                             # otherwise
@@ -129,10 +135,12 @@ class WindowMixin:
 
 class MailSelection(Selection, WindowMixin):
 
-  def __init__(self, corpus, term_preds, doc_preds=None, disjunctive=False, window_size=0):
+  def __init__(self, corpus, term_preds, doc_preds=None,
+               disjunctive=False, window_size=0):
     # safe=False : we don't want to skip "future" messages.
     WindowMixin.__init__(self, window_size)
-    Selection.__init__(self, corpus, term_preds, doc_preds, safe=False, disjunctive=disjunctive)
+    Selection.__init__(self, corpus, term_preds, doc_preds,
+                       safe=False, disjunctive=disjunctive)
     return
 
   def estimation(self):
@@ -142,8 +150,10 @@ class MailSelection(Selection, WindowMixin):
       return 'about %d messages' % self.nresults
 
   def description(self):
-    r = [ '"%s"' % rmsp(unicode(pred)) for pred in self.get_preds() if unicode(pred) ]
-    r.extend( '"%s"' % rmsp(unicode(pred)) for pred in self.doc_preds if unicode(pred) )
+    r = [ '"%s"' % rmsp(unicode(pred)) for pred
+          in self.get_preds() if unicode(pred) ]
+    r.extend( '"%s"' % rmsp(unicode(pred)) for pred
+              in self.doc_preds if unicode(pred) )
     return ' '.join(r) or 'all'
 
 class DummyMailSelection(DummySelection, WindowMixin):
@@ -194,9 +204,11 @@ class Kernel:
     return
 
   def list_selections(self):
-    selections = [ fname for fname in os.listdir(config.SELECTION_DIR) if fname.startswith('sel.') ]
+    selections = [ fname for fname in os.listdir(config.SELECTION_DIR)
+                   if fname.startswith('sel.') ]
     selections.sort(reverse=True)
-    return [ os.path.join(config.SELECTION_DIR, fname) for fname in selections ] 
+    return [ os.path.join(config.SELECTION_DIR, fname)
+             for fname in selections ] 
 
   def get_selection(self, i=0):
     if i == 0 and self.current_selection != None:
@@ -251,13 +263,15 @@ class Kernel:
   # Show temporary selection.
   def select_tmp(self, descr, corpus, locs, verbose=0):
     locs = [ loc for loc in locs if 0 <= DEFAULT_FILTER(loc, corpus) ]
-    self.set_selection(DummyMailSelection(descr, corpus, locs, window_size=len(locs)))
+    self.set_selection(
+      DummyMailSelection(descr, corpus, locs, window_size=len(locs)))
     self.get_selection().list_messages(self.terminal, verbose)
     return
 
   # Add text to the database.
   # This part should be robust enough. Don't throw any execption.
-  # but this might cause FileLockError. In that case, the edit will be lost...
+  # but this might cause FileLockError.
+  # In that case, the edit will be lost...
   def submit_message(self, data, original=None):
     corpus = self.get_corpus()
     corpus.set_writable()
@@ -269,7 +283,8 @@ class Kernel:
       corpus.set_deleted_label(original)
 
     # Get labels.
-    # We silently ignore unknown labels, because we shouldn't throw any exception.
+    # We silently ignore unknown labels,
+    # because we shouldn't throw any exception.
     def get_labels(labels):
       for name in labels:
         try:
@@ -283,13 +298,17 @@ class Kernel:
     # Resolve addresses.
     # We silently ignore unresolved addresses.
     def resolve1((user,addr)):
-      if user: return formataddr((user, addr))
-      if addr in config.ADDRESS_ALIASES: return config.ADDRESS_ALIASES[addr]
+      if user:
+        return formataddr((user, addr))
+      if addr in config.ADDRESS_ALIASES:
+        return config.ADDRESS_ALIASES[addr]
       r = self.resolve_address(addr)
-      if not r: return addr
+      if not r:
+        return addr
       (n, x) = r[0]
       threshold = int(len(r)*config.RESOLVE_ADDRESS_RATIO + 0.5)
-      if n <= threshold: return addr
+      if n <= threshold:
+        return addr
       return x
     alt_headers = []
     for (k,v) in msg.items():
@@ -311,10 +330,12 @@ class Kernel:
   def resolve_address(self, addr):
     r = {}
     pat = re.compile(re.escape(addr), re.I | re.UNICODE)
-    preds = [ EMailPredicate('addr:'+addr, yomip=config.INDEX_YOMI) ]
+    preds = [ EMailPredicate('addr:'+addr) ]
     corpus = self.get_corpus()
     try:
-      selection = Selection(corpus, preds, doc_preds=[ DEFAULT_FILTER_WITH_SENT ], safe=False)
+      selection = Selection(corpus, preds,
+                            doc_preds=[ DEFAULT_FILTER_WITH_SENT ],
+                            safe=False)
       for (i,doc) in selection.iter(timeout=1):
         msg = doc.get_msg()
         for (n, a) in unicode_getalladdrs(msg, 'from', 'to', 'cc'):
@@ -377,20 +398,22 @@ class Kernel:
       # Query specified.
       # Create an appropriate selection.
       if args == ['all'] or args == ['a']:
-        # "scan all"
+        # scan all the messages.
         if search_all:
           selection = MailSelection(corpus, [], window_size=nmsgs)
         else:
-          selection = MailSelection(corpus, [], doc_preds=[ DEFAULT_FILTER ], window_size=nmsgs)
+          selection = MailSelection(corpus, [],
+                                    doc_preds=[ DEFAULT_FILTER ],
+                                    window_size=nmsgs)
       else:
         # scan "something"
-        term_preds = []
+        terms = []
         label_preds = []
         doc_preds = [ DEFAULT_FILTER ]
         for kw in args:
           if not kw: continue
-          if kw[0] != '+': 
-            term_preds.append(EMailPredicate(kw, yomip=config.INDEX_YOMI))
+          if kw[0] != '+':
+            terms.append(kw)
             continue
           kw = kw[1:]
           if not kw:
@@ -405,6 +428,24 @@ class Kernel:
           except config.UnknownLabel, e:
             raise Kernel.ValueError('Unknown label: %s' % e)
           label_preds.append(pred)
+        term_preds = [ EMailPredicate(kw) for kw in terms ]
+        # Automatic query expansion.
+        def forall(pred, seq):
+          for x in seq:
+            if not pred(x): return False
+          return True
+        if len(terms) == 1 and terms[0].isalpha() and canbe_yomi(terms[0]):
+          term_preds = [ YomiEMailPredicate(terms[0]),
+                         EMailPredicate(terms[0]) ]
+          disjunctive = True
+        elif forall(canbe_yomi, terms):
+          term_preds = [ YomiEMailPredicate(kw) for kw in terms ]
+        else:
+          def stripdot(x):
+            if x.startswith('.'):
+              return x[1:]
+            return x
+          term_preds = [ EMailPredicate(stripdot(kw)) for kw in terms ]
         if search_all:
           doc_preds = []
         selection = MailSelection(corpus, term_preds+label_preds, doc_preds,
@@ -445,14 +486,16 @@ class Kernel:
       self.terminal.warning('Arguments ignored: %r' % args)
     for (i,doc,part) in docs:
       if dolist:
-        message.show_digest(self.terminal, i, False, doc, self.get_selection(), doc.labels)
+        message.show_digest(self.terminal, i, False,
+                            doc, self.get_selection(), doc.labels)
         continue
       if part == None:
         message.show_message(self.terminal, i, doc, self.get_selection(),
                              showall, showall, headerlevel, verbose)
         continue
       try:
-        message.show_mime_part(self.terminal, doc.get_msg(0), part, headerlevel, charset)
+        message.show_mime_part(self.terminal, doc.get_msg(0),
+                               part, headerlevel, charset)
       except MessagePartNotFoundError:
         raise Kernel.ValueError('Message part not found.')
     return
@@ -576,15 +619,18 @@ class Kernel:
       raise Kernel.SyntaxError('Specify the message to reply/forward.')
     
     def resolve1(addr):
-      if '@' in addr: return addr
-      if addr in config.ADDRESS_ALIASES: return config.ADDRESS_ALIASES[addr]
+      if '@' in addr:
+        return addr
+      if addr in config.ADDRESS_ALIASES:
+        return config.ADDRESS_ALIASES[addr]
       r = self.resolve_address(addr)
       if not r:
         raise Kernel.ValueError('Cannot resolve address: %s' % addr)
       (n, x) = r[0]
       threshold = int(len(r)*config.RESOLVE_ADDRESS_RATIO + 0.5)
       if n <= threshold:
-        raise Kernel.ValueError('Ambiguous address: %s: %s' % (addr, ', '.join( a for (n,a) in r )))
+        raise Kernel.ValueError('Ambiguous address: %s: %s' %
+                                (addr, ', '.join( a for (n,a) in r )))
       return x
     
     addrs_to = [ resolve1(addr) for addr in addrs_to ]
@@ -604,8 +650,9 @@ class Kernel:
         if reply:
           includemsgs = headermsgs
     # Setup a template and edit it.
-    tmpl = message.setup_template_string(config.MY_FROM, addrs_to, addrs_cc, addrs_bcc, group,
-                                         subject, labels, headermsgs, includemsgs, forwardmsgids)
+    tmpl = message.setup_template_string(
+      config.MY_FROM, addrs_to, addrs_cc, addrs_bcc, group,
+      subject, labels, headermsgs, includemsgs, forwardmsgids)
     return self.terminal.edit_text(self, tmpl)
   
   # cmd_edit
@@ -869,7 +916,8 @@ class Kernel:
           doc.del_label(doc.labels)
         doc.add_label(labels_add)
       if dryrun or verbose:
-        message.show_digest(self.terminal, i, False, doc, self.get_selection(), labels_add)
+        message.show_digest(self.terminal, i, False,
+                            doc, self.get_selection(), labels_add)
     return
 
   # cmd_sel
@@ -895,7 +943,9 @@ class Kernel:
         MailCorpus.register_singleton_handler(self.get_corpus)
         selection = pickle.load(fp)
         fp.close()
-        self.terminal.notice('%2d: %s (%s)' % (i, selection.description(), selection.estimation()))
+        self.terminal.notice('%2d: %s (%s)' %
+                             (i, selection.description(),
+                              selection.estimation()))
     return
   
   # cmd_cleanup
