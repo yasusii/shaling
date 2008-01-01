@@ -193,3 +193,15 @@ def log(x):
   LOG_FP.write('%s: %d: %s\n' % (time.asctime(), os.getpid(), x))
   LOG_FP.flush()
   return
+
+
+# forall
+def forall(pred, seq):
+  for x in seq:
+    if not pred(x): return False
+  return True
+
+def exists(pred, seq):
+  for x in seq:
+    if pred(x): return True
+  return False

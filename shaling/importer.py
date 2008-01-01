@@ -352,6 +352,7 @@ class POP3Importer(MessageImporter):
     return
   
   def finish(self):
+    import poplib
     from email import Parser
     for i in xrange(self.msgcount):
       try:
