@@ -78,7 +78,7 @@ class WindowMixin:
           self.focus = min(self.focus, i)
         if 0 <= verbose:
           message.show_digest(terminal, i, i == self.focus,
-                              doc, self, doc.labels)
+                              doc, self, doc.get_labels())
         else:
           terminal.notice(str(i))
         self.window_end = i
@@ -280,7 +280,7 @@ class Kernel:
     else:
       doc = corpus.get_doc(original)
       (msg, labels) = message.create_message(corpus, data, doc.get_msg(0))
-      corpus.set_deleted_label(original)
+      corpus.mark_deleted(original)
 
     # Get labels.
     # We silently ignore unknown labels,
@@ -487,7 +487,7 @@ class Kernel:
     for (i,doc,part) in docs:
       if dolist:
         message.show_digest(self.terminal, i, False,
-                            doc, self.get_selection(), doc.labels)
+                            doc, self.get_selection(), doc.get_labels())
         continue
       if part == None:
         message.show_message(self.terminal, i, doc, self.get_selection(),
@@ -673,9 +673,9 @@ class Kernel:
     if len(docs) != 1:
       raise Kernel.SyntaxError('Can edit only one message at a time.')
     (_,doc,part) = docs[0]
-    if not force and (config.LABEL4DRAFT not in doc.labels):
+    if not force and (config.LABEL4DRAFT not in doc.get_labels()):
       raise Kernel.ValueError('Message not in the draft.')
-    data = message.get_editable_string(doc.get_msg(0), doc.labels)
+    data = message.get_editable_string(doc.get_msg(0), doc.get_labels())
     return self.terminal.edit_text(self, data, doc.loc)
 
   # cmd_mime
@@ -701,7 +701,7 @@ class Kernel:
       raise Kernel.SyntaxError('Can edit only one message at a time.')
     #
     (_,doc,part) = docs[0]
-    if config.LABEL4DRAFT not in doc.labels:
+    if config.LABEL4DRAFT not in doc.get_labels():
       raise Kernel.ValueError('Message not in the draft.')
     msg = doc.get_msg(0)
     if remove:
@@ -724,8 +724,8 @@ class Kernel:
         (fname, data) = self.terminal.load_file(fname)
         obj = message.mime_new(fname, data, mimetype, charset)
         msg = message.mime_add(msg, obj)
-    corpus.set_deleted_label(doc.loc)
-    loc = corpus.add_message(msg_repr(msg), doc.labels)
+    corpus.mark_deleted(doc.loc)
+    loc = corpus.add_message(msg_repr(msg), doc.get_labels())
     self.select_tmp('mime', corpus, [loc])
     return
 
@@ -774,11 +774,10 @@ class Kernel:
     # Reopen the corpus.
     for (_,doc,part) in docs:
       if reset:
-        doc.del_label(doc.labels)
-        doc.add_label(label_add)
+        corpus.del_message_label(doc.loc, doc.get_labels())
       else:
-        doc.del_label(label_del)
-        doc.add_label(label_add)
+        corpus.del_message_label(doc.loc, label_del)
+      corpus.add_message_label(doc.loc, label_add)
     # Redisplay the selection.
     if 0 < verbose:
       self.get_selection().list_messages(self.terminal, verbose)
@@ -805,7 +804,7 @@ class Kernel:
       raise Kernel.SyntaxError('No message is specified.')
     msgs = []
     for (i,doc,part) in docs:
-      if config.LABEL4DRAFT not in doc.labels:
+      if config.LABEL4DRAFT not in doc.get_labels():
         raise Kernel.ValueError('Message not in the draft: %d' % (i+1))
       msg = doc.get_msg(0)
       try:
@@ -825,7 +824,7 @@ class Kernel:
       if verbose:
         self.terminal.notice('From: %r' % fromaddr)
         self.terminal.notice('Rcpt: %r' % rcpts)
-      corpus.set_deleted_label(loc)
+      corpus.mark_deleted(loc)
       corpus.add_message(data, config.LABEL4SENT)
     corpus.flush(self.notice_indexing)
     self.remove_selection()
@@ -907,17 +906,17 @@ class Kernel:
     corpus = self.get_selection().get_corpus()
     corpus.set_writable()
     for (i,doc,part) in docs:
-      labels_add = set(ruleset.apply_msg(doc.get_msg()))
+      label_add = set(ruleset.apply_msg(doc.get_msg()))
       if dryrun:
         if not reset:
-          labels_add.update(doc.labels)
+          label_add.update(doc.get_labels())
       else:
         if reset:
-          doc.del_label(doc.labels)
-        doc.add_label(labels_add)
+          corpus.del_message_label(doc.loc, doc.get_labels())
+        corpus.add_message_label(doc.loc, label_add)
       if dryrun or verbose:
         message.show_digest(self.terminal, i, False,
-                            doc, self.get_selection(), labels_add)
+                            doc, self.get_selection(), label_add)
     return
 
   # cmd_sel

@@ -19,27 +19,19 @@ class EMailDocumentWithLabel(EMailDocument):
   # For displaying snippets, parsing the first 50kb is enough.
   MAX_SIZE = 50000
   
-  def __init__(self, corpus, loc, mtime, labels=None):
+  def __init__(self, corpus, loc, mtime):
     EMailDocument.__init__(self, corpus, loc)
     self.mtime = mtime
-    self.labels = labels
     return
   
   def get_mtime(self):
     return self.mtime
   
   def __repr__(self):
-    return '<EMailDocumentWithLabel: loc=%r, labels=%r>' % (self.loc, self.labels)
-  
-  def add_label(self, labels):
-    self.corpus.add_label(self.loc, labels)
-    self.labels.update(labels)
-    return
+    return '<EMailDocumentWithLabel: loc=%r>' % (self.loc,)
 
-  def del_label(self, labels):
-    self.corpus.del_label(self.loc, labels)
-    self.labels.difference_update(labels)
-    return
+  def get_labels(self):
+    return self.corpus.get_message_labels(self.loc)
 
 
 ##  LabelPredicate
@@ -92,7 +84,7 @@ class LabelBlock:
     return
 
   def __call__(self, loc, corpus):
-    if self.filter_pat.search(''.join(sorted(corpus.get_label(loc)))): return -1
+    if self.filter_pat.search(''.join(sorted(corpus.get_message_labels(loc)))): return -1
     return 0
 
 class LabelPass:
@@ -108,7 +100,7 @@ class LabelPass:
     return
   
   def __call__(self, loc, corpus):
-    if self.filter_pat.search(''.join(sorted(corpus.get_label(loc)))): return 0
+    if self.filter_pat.search(''.join(sorted(corpus.get_message_labels(loc)))): return 0
     return -1
 
 class DefaultLabelBlock(LabelBlock):
@@ -159,6 +151,9 @@ class LabelDB:
     return msgids
 
   def add_label(self, msgid, labels):
+    '''
+    labels: a sequence or set of characters that represent labels.
+    '''
     for label in labels:
       msgids = self.get_msgids(label)
       if msgid not in msgids:
@@ -167,6 +162,9 @@ class LabelDB:
     return
 
   def del_label(self, msgid, labels):
+    '''
+    labels: a sequence or set of characters that represent labels.
+    '''
     for label in labels:
       msgids = self.get_msgids(label)
       if msgid in msgids:
@@ -313,6 +311,7 @@ class MailCorpus(Corpus):
     gz.write(data)
     gz.close()
     recno = self._db.add_record(info, fp.getvalue())
+    self._labeldb.add_label(recno, labels)
     self._last_unindexed_loc = str(recno)
     return self._last_unindexed_loc
 
@@ -330,11 +329,11 @@ class MailCorpus(Corpus):
       raise AssertionError('Invalid file name: %r' % name)
     return set(m.group(1))
     
-  def get_label(self, loc):
+  def get_message_labels(self, loc):
     info = self._db.get_info(int(loc))
     return self._name2labels(info.name)
     
-  def add_label(self, loc, labels):
+  def add_message_label(self, loc, labels):
     recno = int(loc)
     info = self._db.get_info(recno)
     labels1 = self._name2labels(info.name).union(set(labels))
@@ -343,7 +342,7 @@ class MailCorpus(Corpus):
     self._labeldb.add_label(recno, labels)
     return
 
-  def del_label(self, loc, labels):
+  def del_message_label(self, loc, labels):
     recno = int(loc)
     info = self._db.get_info(recno)
     labels1 = self._name2labels(info.name).difference(set(labels))
@@ -352,8 +351,8 @@ class MailCorpus(Corpus):
     self._labeldb.del_label(recno, labels)
     return
 
-  def set_deleted_label(self, loc):
-    self.add_label(loc, config.LABEL4DELETED)
+  def mark_deleted(self, loc):
+    self.add_message_label(loc, config.LABEL4DELETED)
     return
 
   # Corpus methods
@@ -373,8 +372,7 @@ class MailCorpus(Corpus):
 
   def get_doc(self, loc):
     info = self._db.get_info(int(loc))
-    labels = self._name2labels(info.name)
-    return EMailDocumentWithLabel(self, loc, info.mtime, labels)
+    return EMailDocumentWithLabel(self, loc, info.mtime)
 
 
 # main: 
@@ -441,7 +439,7 @@ def main(argv):
         print 'Shaling-Record-Index:', loc
         print 'Shaling-Record-Mtime:', corpus.loc_mtime(loc)
         print 'Shaling-Record-Length:', len(data)
-        print 'Shaling-Record-Label:', ' '.join(corpus.get_label(loc))
+        print 'Shaling-Record-Label:', ' '.join(corpus.get_message_labels(loc))
       sys.stdout.write(data)
     corpus.close()
     
