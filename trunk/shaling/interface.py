@@ -230,7 +230,7 @@ class InteractiveTerminalInterface(ColorTerminalInterface):
     t0 = modtime(fname)
     cmdline = config.EDITOR % fp.name
     status = os.WEXITSTATUS(os.system(cmdline))
-    if status:
+    if config.CHECK_EDITOR_STATUS and status:
       raise Interface.Aborted("Editor aborted: (%04x) %r" % (status, cmdline))
     if modtime(fname) <= t0:
       raise Interface.Cancelled("Edit cancelled.")
