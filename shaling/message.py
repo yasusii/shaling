@@ -201,8 +201,9 @@ def show_message(term, idx, doc, selection,
     term = term.open_pager()
 
   if verbose:
-    term.display(term.color(get_message_color(doc.labels),
-                            '*** %d: (%s) [%s]\n' % (idx+1, doc.loc, get_label_names(doc.labels))))
+    labels = doc.get_labels()
+    term.display(term.color(get_message_color(labels),
+                            '*** %d: (%s) [%s]\n' % (idx+1, doc.loc, get_label_names(labels))))
   msg0 = doc.get_msg(0)
   trees = []
   if msg0.is_multipart():
@@ -260,7 +261,7 @@ def show_headers(term, doc, headers):
   msg = doc.get_msg()
   for (h, showname) in headers:
     if h.lower() == 'label':
-      values = [doc.labels]
+      values = [doc.get_labels()]
     else:
       values = unicode_getall(msg, h)
     for v in values:

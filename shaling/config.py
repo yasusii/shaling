@@ -13,6 +13,7 @@ TOP_DIR = None
 SPOOL = None
 MY_FROM = 'unknown'
 EDITOR = os.environ.get('EDITOR', 'vi')+' %s'
+CHECK_EDITOR_STATUS = True
 SMTP_HOST = ('localhost', 25, '', '', False)
 MESSAGE_COLOR = []
 LABELS = {}
