@@ -5,12 +5,14 @@ from os.path import basename
 stdout = sys.stdout
 stderr = sys.stderr
 
-def generate_catalog(args, recsize, out=stdout):
+def generate_catalog(args, recsize, out=stdout, verbose=0):
   out.write(''.join( str(i % 10) for i in xrange(1,recsize) ) + '\n')
   args.sort()
   recno = 0
   errno = 0
   for fname in args:
+    if verbose:
+      print >>stderr, 'reading: %r...' % fname
     name = basename(fname)
     if name.endswith('.tar'):
       name = name[:-4]
@@ -54,13 +56,15 @@ def generate_catalog(args, recsize, out=stdout):
   return errno
 
 
-def generate_labelidx(args, prefix):
+def generate_labelidx(args, prefix, verbose=0):
   import re, struct
   pat = re.compile(r'([0-9a-f]{8})\.(.*)')
   valid_labels = re.compile(r'[0-9a-zA-Z]')
   labelmap = {}
   errno = 0
   for fname in args:
+    if verbose:
+      print >>stderr, 'reading: %r...' % fname
     tarfp = file(fname, 'rb')
     while 1:
       offset = tarfp.tell()
@@ -102,7 +106,7 @@ def generate_labelidx(args, prefix):
 def main(argv):
   import getopt
   def usage():
-    print 'usage: %s {-C [-n recsize] | -L [-o prefix]} [file ...]' % argv[0]
+    print 'usage: %s [-v] {-C [-n recsize] | -L [-o prefix]} [file ...]' % argv[0]
     return 100
   try:
     (opts, args) = getopt.getopt(argv[1:], 'CLn:')
@@ -111,16 +115,18 @@ def main(argv):
   recsize = 16
   prefix = './label'
   mode = 0
-  for (k, v) in opts:
-    if k == '-C': mode = 1
+  verbose = 0
+  for (k,v) in opts:
+    if k == '-v': verbose += 1
+    elif k == '-C': mode = 1
     elif k == '-L': mode = 2
     elif k == '-n': recsize = int(v)
     elif k == '-o': prefix = v
   if not mode: return usage()
   if mode == 1:
-    return generate_catalog(args, recsize)
+    return generate_catalog(args, recsize, verbose=verbose)
   elif mode == 2:
-    return generate_labelidx(args, prefix)
+    return generate_labelidx(args, prefix, verbose=verbose)
   return
 
 if __name__ == '__main__': sys.exit(main(sys.argv))
