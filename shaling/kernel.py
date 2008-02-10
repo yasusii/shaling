@@ -228,6 +228,7 @@ class Kernel:
     if selection != self.current_selection: 
       self.save_current_selection()
       self.current_selection = selection
+      self.save_current_selection()
     return
 
   def remove_selection(self):
@@ -434,7 +435,7 @@ class Kernel:
           for x in seq:
             if not pred(x): return False
           return True
-        if len(terms) == 1 and terms[0].isalpha() and canbe_yomi(terms[0]):
+        if len(terms) == 1 and terms[0].isalpha() and canbe_yomi(terms[0]) and not label_preds:
           term_preds = [ YomiEMailPredicate(terms[0]),
                          EMailPredicate(terms[0]) ]
           disjunctive = True
